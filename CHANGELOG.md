@@ -8,9 +8,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Local Markdown preview
 - Mermaid fenced-block rendering
 - D2 fenced-block rendering
+
+## [0.2.0] - 2026-07-16
+
+### Added
+
+- Native split view with a long-lived WebKit preview
+- Offline Markdown rendering using bundled markdown-it 14.3.0
+- Light and dark preview styles for headings, lists, quotes, tables, links, and code
+- Debounced preview updates that preserve the current scroll ratio
+- Local content security policy and external-link handoff to macOS
 
 ## [0.1.0] - 2026-07-16
 

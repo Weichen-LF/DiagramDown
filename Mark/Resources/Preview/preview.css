@@ -1,0 +1,188 @@
+:root {
+  color-scheme: light dark;
+  --background: #ffffff;
+  --foreground: #24252a;
+  --secondary: #686b73;
+  --border: #dcdde2;
+  --quote-border: #7b61e8;
+  --code-background: #f3f2f7;
+  --link: #5b43cb;
+  --table-stripe: #f8f7fb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1c1c1e;
+    --foreground: #e8e8eb;
+    --secondary: #a4a4ac;
+    --border: #3a3a40;
+    --quote-border: #a38cf4;
+    --code-background: #29282e;
+    --link: #b4a4ff;
+    --table-stripe: #232327;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+.markdown-body {
+  width: min(100%, 880px);
+  margin: 0 auto;
+  padding: 32px clamp(28px, 6vw, 64px) 80px;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 1.65em 0 0.65em;
+  line-height: 1.25;
+  letter-spacing: -0.018em;
+}
+
+h1 {
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--border);
+  font-size: 2em;
+}
+
+h2 {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.5em;
+}
+
+h3 {
+  font-size: 1.25em;
+}
+
+p,
+blockquote,
+ul,
+ol,
+pre,
+table {
+  margin: 0 0 1.1em;
+}
+
+ul,
+ol {
+  padding-left: 1.75em;
+}
+
+li + li {
+  margin-top: 0.25em;
+}
+
+blockquote {
+  padding: 0.15em 1em;
+  border-left: 3px solid var(--quote-border);
+  color: var(--secondary);
+}
+
+blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+a {
+  color: var(--link);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.16em;
+}
+
+hr {
+  height: 1px;
+  margin: 2em 0;
+  border: 0;
+  background: var(--border);
+}
+
+code,
+pre {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+code {
+  padding: 0.15em 0.36em;
+  border-radius: 5px;
+  background: var(--code-background);
+  font-size: 0.88em;
+}
+
+pre {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--code-background);
+  line-height: 1.5;
+  overflow: auto;
+}
+
+pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.86em;
+}
+
+table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  border-collapse: collapse;
+  overflow: auto;
+}
+
+th,
+td {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+th {
+  font-weight: 600;
+}
+
+tr:nth-child(even) {
+  background: var(--table-stripe);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview-empty {
+  margin-top: 20vh;
+  color: var(--secondary);
+  text-align: center;
+}
