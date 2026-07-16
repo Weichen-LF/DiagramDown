@@ -3,6 +3,7 @@
 //  DiagramDown
 //
 
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -25,6 +26,21 @@ struct D2RenderConfiguration: Sendable {
         padding: 40,
         sketch: false
     )
+
+    nonisolated var cacheDescriptor: String {
+        [
+            layout.rawValue,
+            String(lightThemeID),
+            String(darkThemeID),
+            String(padding),
+            sketch ? "sketch" : "standard",
+        ].joined(separator: "\0")
+    }
+}
+
+struct D2RenderResult: Sendable {
+    let svg: String
+    let cacheHit: Bool
 }
 
 enum D2RenderError: LocalizedError, Sendable {
@@ -67,14 +83,34 @@ enum D2RenderError: LocalizedError, Sendable {
 actor D2RenderService {
     static let shared = D2RenderService()
 
+    nonisolated static let rendererVersion = "0.7.1"
+
+    #if arch(arm64)
+    nonisolated private static let rendererArchitecture = "arm64"
+    #elseif arch(x86_64)
+    nonisolated private static let rendererArchitecture = "x86_64"
+    #else
+    nonisolated private static let rendererArchitecture = "unknown"
+    #endif
+
     private static let maximumInputBytes = 256 * 1_024
     private static let maximumOutputBytes = 8 * 1_024 * 1_024
     private static let maximumDiagnosticBytes = 256 * 1_024
+    private static let maximumCacheBytes = 32 * 1_024 * 1_024
+
+    private struct CacheEntry {
+        let svg: String
+        let cost: Int
+        var lastAccess: UInt64
+    }
 
     private let overrideExecutableURL: URL?
     private var runningProcesses: [UUID: Process] = [:]
     private var cancelledJobs: Set<UUID> = []
     private var timedOutJobs: Set<UUID> = []
+    private var cache: [String: CacheEntry] = [:]
+    private var cacheCost = 0
+    private var accessCounter: UInt64 = 0
 
     init(executableURL: URL? = nil) {
         overrideExecutableURL = executableURL
@@ -83,11 +119,19 @@ actor D2RenderService {
     func render(
         source: String,
         configuration: D2RenderConfiguration = .preview
-    ) async throws -> String {
+    ) async throws -> D2RenderResult {
         try Task.checkCancellation()
 
         guard source.utf8.count <= Self.maximumInputBytes else {
             throw D2RenderError.inputTooLarge
+        }
+
+        let key = cacheKey(source: source, configuration: configuration)
+        if var cached = cache[key] {
+            accessCounter &+= 1
+            cached.lastAccess = accessCounter
+            cache[key] = cached
+            return D2RenderResult(svg: cached.svg, cacheHit: true)
         }
 
         guard let executableURL = overrideExecutableURL ?? Self.executableURL,
@@ -204,7 +248,45 @@ actor D2RenderService {
             throw D2RenderError.invalidSVG
         }
 
-        return svg
+        store(svg: svg, forKey: key)
+        return D2RenderResult(svg: svg, cacheHit: false)
+    }
+
+    private func cacheKey(
+        source: String,
+        configuration: D2RenderConfiguration
+    ) -> String {
+        let material = [
+            Self.rendererVersion,
+            Self.rendererArchitecture,
+            configuration.cacheDescriptor,
+            source,
+        ].joined(separator: "\0")
+        let digest = SHA256.hash(data: Data(material.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func store(svg: String, forKey key: String) {
+        let cost = svg.utf8.count
+        guard cost <= Self.maximumCacheBytes else {
+            return
+        }
+
+        if let previous = cache.removeValue(forKey: key) {
+            cacheCost -= previous.cost
+        }
+
+        accessCounter &+= 1
+        cache[key] = CacheEntry(svg: svg, cost: cost, lastAccess: accessCounter)
+        cacheCost += cost
+
+        while cacheCost > Self.maximumCacheBytes,
+              let oldestKey = cache.min(by: {
+                  $0.value.lastAccess < $1.value.lastAccess
+              })?.key,
+              let removed = cache.removeValue(forKey: oldestKey) {
+            cacheCost -= removed.cost
+        }
     }
 
     private static var executableURL: URL? {

@@ -8,7 +8,16 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Diagram caching and scroll synchronization
+- Editor-preview scroll synchronization
+- D2 preview settings
+
+## [0.5.0] - 2026-07-16
+
+### Added
+
+- 32 MB in-memory LRU cache for generated D2 SVGs
+- SHA-256 cache keys that include source, D2 version, CPU architecture, and render configuration
+- Stable content-based block IDs for Mermaid and D2 diagrams, including distinct IDs for duplicate blocks
 
 ## [0.4.0] - 2026-07-16
 

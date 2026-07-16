@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.4.0` completes the first diagram-rendering MVP:
+Version `0.5.0` adds the first diagram cache and stable preview identities:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -21,6 +21,8 @@ Version `0.4.0` completes the first diagram-rendering MVP:
 - Inline Mermaid errors with expandable source and light/dark diagram themes
 - Bundled D2 0.7.1 rendering for fenced `d2` code blocks
 - Sandboxed D2 execution with cancellation, timeouts, size limits, and inline errors
+- 32 MB in-memory LRU cache for repeated D2 renders
+- Stable Mermaid and D2 block identities across preview revisions
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
@@ -49,7 +51,7 @@ xcodebuild \
 - `Mark/MarkdownEditorView.swift`: native AppKit editor embedded in SwiftUI
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
-- `Mark/D2RenderService.swift`: bounded D2 process execution and temporary-file lifecycle
+- `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and memory cache
 - `Mark/Resources/Preview`: bundled offline preview runtime
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
 - `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
@@ -63,4 +65,7 @@ xcodebuild \
 2. Local WebKit Markdown preview — complete for the MVP
 3. Mermaid fenced-block rendering — complete for the MVP
 4. Sandboxed D2 CLI rendering — complete for the MVP
-5. Caching, scroll sync, themes, and export — next
+5. D2 memory cache and stable diagram identity — complete
+6. Editor-preview scroll synchronization — next
+7. D2 preview settings — planned
+8. Disk cache, preview zoom, and export — planned

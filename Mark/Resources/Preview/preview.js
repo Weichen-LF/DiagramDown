@@ -27,13 +27,36 @@ function configureMermaid() {
 
 configureMermaid();
 
+function sourceFingerprint(language, source) {
+  const value = `${language}\0${source}`;
+  let first = 0x811c9dc5;
+  let second = 0x9e3779b9;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    first = Math.imul(first ^ code, 0x01000193);
+    second = Math.imul(second ^ code, 0x85ebca6b);
+  }
+
+  return [first, second]
+    .map((valuePart) => (valuePart >>> 0).toString(16).padStart(8, "0"))
+    .join("");
+}
+
+function stableBlockID(environment, language, source) {
+  const fingerprint = sourceFingerprint(language, source);
+  const occurrenceKey = `${language}-${fingerprint}`;
+  const occurrence = environment.blockOccurrences.get(occurrenceKey) || 0;
+  environment.blockOccurrences.set(occurrenceKey, occurrence + 1);
+  return `${language}-${fingerprint}-${occurrence}`;
+}
+
 markdown.renderer.rules.fence = (tokens, index, options, env, self) => {
   const token = tokens[index];
   const language = token.info.trim().split(/\s+/u, 1)[0].toLowerCase();
 
   if (language === "mermaid") {
-    const blockIndex = env.mermaidBlocks.length;
-    const blockID = `mermaid-${env.revision}-${blockIndex}`;
+    const blockID = stableBlockID(env, "mermaid", token.content);
     env.mermaidBlocks.push({
       id: blockID,
       source: token.content,
@@ -43,8 +66,7 @@ markdown.renderer.rules.fence = (tokens, index, options, env, self) => {
   }
 
   if (language === "d2") {
-    const blockIndex = env.d2Blocks.length;
-    const blockID = `d2-${env.revision}-${blockIndex}`;
+    const blockID = stableBlockID(env, "d2", token.content);
     env.d2Blocks.push({
       id: blockID,
       source: token.content,
@@ -270,6 +292,7 @@ async function renderMarkdown(source, revision) {
     ? scroller.scrollTop / previousMaximum
     : 0;
   const environment = {
+    blockOccurrences: new Map(),
     d2Blocks: [],
     mermaidBlocks: [],
     revision,

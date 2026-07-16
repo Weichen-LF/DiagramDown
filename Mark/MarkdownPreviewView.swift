@@ -195,12 +195,14 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 return
             }
 
-            let expectedPrefix = "d2-\(requestedRevision)-"
             let blocks = rawBlocks.compactMap { rawBlock -> D2BlockRequest? in
                 guard let blockID = rawBlock["id"] as? String,
                       let source = rawBlock["source"] as? String,
                       blockID.count <= 128,
-                      blockID.hasPrefix(expectedPrefix) else {
+                      blockID.range(
+                          of: #"^d2-[0-9a-f]{16}-[0-9]+$"#,
+                          options: .regularExpression
+                      ) != nil else {
                     return nil
                 }
 
@@ -304,7 +306,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
                     }
 
                     do {
-                        let svg = try await D2RenderService.shared.render(source: block.source)
+                        let result = try await D2RenderService.shared.render(source: block.source)
                         try Task.checkCancellation()
                         guard revision == self.revision else {
                             return
@@ -312,7 +314,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
                         try await applyD2Result(
                             blockID: block.id,
                             revision: revision,
-                            svg: svg
+                            svg: result.svg
                         )
                     } catch is CancellationError {
                         return
