@@ -8,7 +8,21 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Disk cache, preview zoom, and export
+- Preview zoom and export
+
+## [0.9.0] - 2026-07-16
+
+### Added
+
+- Persistent D2 SVG cache under the sandboxed user caches directory
+- SHA-256-sharded cache paths and atomic entry writes
+- A 256 MB disk limit with least-recently-used cleanup to a 224 MB target
+
+### Changed
+
+- D2 renders can now be reused after application relaunches
+- Invalid, oversized, unreadable, and symbolic-link cache entries are discarded and regenerated
+- Disk cache failures remain best-effort and do not replace successful preview results with errors
 
 ## [0.8.0] - 2026-07-16
 

@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.8.0` adds application-wide appearance and preview themes:
+Version `0.9.0` adds a persistent D2 render cache:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -23,6 +23,7 @@ Version `0.8.0` adds application-wide appearance and preview themes:
 - Bundled D2 0.7.1 rendering for fenced `d2` code blocks
 - Sandboxed D2 execution with cancellation, timeouts, size limits, and inline errors
 - 32 MB in-memory LRU cache for repeated D2 renders
+- 256 MB on-disk LRU cache that survives relaunches and regenerates damaged entries
 - Stable Mermaid and D2 block identities across preview revisions
 - Flicker-free D2 updates that reuse unchanged SVGs and retain the previous diagram while edited source renders
 - Source-line anchors for rendered Markdown and diagram blocks
@@ -62,7 +63,7 @@ xcodebuild \
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
 - `Mark/ScrollSyncState.swift`: editor-preview scroll position and source target state
-- `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and memory cache
+- `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and two-level cache
 - `Mark/PreviewSettingsView.swift`: persistent appearance and preview preferences
 - `Mark/Resources/Preview`: bundled offline preview runtime
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
@@ -81,5 +82,5 @@ xcodebuild \
 6. Editor-preview scroll synchronization — complete for the MVP
 7. D2 preview settings — complete
 8. Application appearance and preview themes — complete
-9. Disk cache — next
-10. Preview zoom and export — planned
+9. Disk cache — complete
+10. Preview zoom and export — next

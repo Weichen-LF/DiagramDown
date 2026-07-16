@@ -545,14 +545,15 @@ SHA256(
 
 ```text
 ~/Library/Caches/<bundle-id>/d2/
-├── ab/cd/<hash>.svg
-└── metadata.json
+└── ab/cd/<hash>.svg
 ```
 
 策略：
 
 - 最大 256 MB
-- LRU 清理
+- 使用文件修改时间记录最近访问，LRU 清理到 224 MB，避免临界点反复清理
+- 原子写入，读取时校验文件类型、大小、UTF-8 和 SVG 边界
+- 损坏或不可信的缓存条目会被移除并重新渲染
 - D2 升级后自然产生新 key
 - 缓存失败不影响正常渲染
 

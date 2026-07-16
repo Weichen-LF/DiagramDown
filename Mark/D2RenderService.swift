@@ -108,6 +108,9 @@ actor D2RenderService {
     private static let maximumOutputBytes = 8 * 1_024 * 1_024
     private static let maximumDiagnosticBytes = 256 * 1_024
     private static let maximumCacheBytes = 32 * 1_024 * 1_024
+    private static let maximumDiskCacheBytes = 256 * 1_024 * 1_024
+    private static let diskCacheTrimTargetBytes = 224 * 1_024 * 1_024
+    private static let diskCacheDirectoryName = "d2"
 
     private struct CacheEntry {
         let svg: String
@@ -116,6 +119,7 @@ actor D2RenderService {
     }
 
     private let overrideExecutableURL: URL?
+    private let overrideCacheDirectoryURL: URL?
     private var runningProcesses: [UUID: Process] = [:]
     private var cancelledJobs: Set<UUID> = []
     private var timedOutJobs: Set<UUID> = []
@@ -123,8 +127,9 @@ actor D2RenderService {
     private var cacheCost = 0
     private var accessCounter: UInt64 = 0
 
-    init(executableURL: URL? = nil) {
+    init(executableURL: URL? = nil, cacheDirectoryURL: URL? = nil) {
         overrideExecutableURL = executableURL
+        overrideCacheDirectoryURL = cacheDirectoryURL
     }
 
     func render(
@@ -143,6 +148,11 @@ actor D2RenderService {
             cached.lastAccess = accessCounter
             cache[key] = cached
             return D2RenderResult(svg: cached.svg, cacheHit: true)
+        }
+
+        if let cachedSVG = diskCachedSVG(forKey: key) {
+            storeInMemory(svg: cachedSVG, forKey: key)
+            return D2RenderResult(svg: cachedSVG, cacheHit: true)
         }
 
         guard let executableURL = overrideExecutableURL ?? Self.executableURL,
@@ -254,12 +264,12 @@ actor D2RenderService {
         }
 
         let svg = try String(contentsOf: outputURL, encoding: .utf8)
-        guard svg.range(of: "<svg", options: .caseInsensitive) != nil,
-              svg.range(of: "</svg>", options: .caseInsensitive) != nil else {
+        guard isValidSVG(svg) else {
             throw D2RenderError.invalidSVG
         }
 
-        store(svg: svg, forKey: key)
+        storeInMemory(svg: svg, forKey: key)
+        storeOnDisk(svg: svg, forKey: key)
         return D2RenderResult(svg: svg, cacheHit: false)
     }
 
@@ -277,7 +287,7 @@ actor D2RenderService {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    private func store(svg: String, forKey key: String) {
+    private func storeInMemory(svg: String, forKey key: String) {
         let cost = svg.utf8.count
         guard cost <= Self.maximumCacheBytes else {
             return
@@ -298,6 +308,161 @@ actor D2RenderService {
               let removed = cache.removeValue(forKey: oldestKey) {
             cacheCost -= removed.cost
         }
+    }
+
+    private func diskCachedSVG(forKey key: String) -> String? {
+        guard let fileURL = diskCacheFileURL(forKey: key),
+              FileManager.default.fileExists(atPath: fileURL.path) else {
+            return nil
+        }
+
+        do {
+            let resourceValues = try fileURL.resourceValues(forKeys: [
+                .fileSizeKey,
+                .isRegularFileKey,
+                .isSymbolicLinkKey,
+            ])
+            guard resourceValues.isRegularFile == true,
+                  resourceValues.isSymbolicLink != true,
+                  let fileSize = resourceValues.fileSize,
+                  fileSize <= Self.maximumOutputBytes else {
+                try? FileManager.default.removeItem(at: fileURL)
+                return nil
+            }
+
+            let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+            guard data.count <= Self.maximumOutputBytes,
+                  let svg = String(data: data, encoding: .utf8),
+                  isValidSVG(svg) else {
+                try? FileManager.default.removeItem(at: fileURL)
+                return nil
+            }
+
+            try? FileManager.default.setAttributes(
+                [.modificationDate: Date()],
+                ofItemAtPath: fileURL.path
+            )
+            return svg
+        } catch {
+            try? FileManager.default.removeItem(at: fileURL)
+            return nil
+        }
+    }
+
+    private func storeOnDisk(svg: String, forKey key: String) {
+        let data = Data(svg.utf8)
+        guard data.count <= Self.maximumOutputBytes,
+              let fileURL = diskCacheFileURL(forKey: key) else {
+            return
+        }
+
+        do {
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try data.write(to: fileURL, options: .atomic)
+            trimDiskCacheIfNeeded()
+        } catch {
+            // The cache is an optimization. A write or cleanup failure must not
+            // turn an otherwise successful render into a preview error.
+        }
+    }
+
+    private func diskCacheFileURL(forKey key: String) -> URL? {
+        guard key.count >= 4, let directoryURL = diskCacheDirectoryURL else {
+            return nil
+        }
+
+        let firstShard = String(key.prefix(2))
+        let secondShard = String(key.dropFirst(2).prefix(2))
+        return directoryURL
+            .appendingPathComponent(firstShard, isDirectory: true)
+            .appendingPathComponent(secondShard, isDirectory: true)
+            .appendingPathComponent("\(key).svg", isDirectory: false)
+    }
+
+    private var diskCacheDirectoryURL: URL? {
+        if let overrideCacheDirectoryURL {
+            return overrideCacheDirectoryURL
+        }
+
+        guard let cachesURL = FileManager.default.urls(
+            for: .cachesDirectory,
+            in: .userDomainMask
+        ).first else {
+            return nil
+        }
+
+        return cachesURL
+            .appendingPathComponent(
+                Bundle.main.bundleIdentifier ?? "me.walt.diagramdown",
+                isDirectory: true
+            )
+            .appendingPathComponent(Self.diskCacheDirectoryName, isDirectory: true)
+    }
+
+    private func trimDiskCacheIfNeeded() {
+        guard let directoryURL = diskCacheDirectoryURL,
+              let enumerator = FileManager.default.enumerator(
+                  at: directoryURL,
+                  includingPropertiesForKeys: [
+                      .contentModificationDateKey,
+                      .fileSizeKey,
+                      .isRegularFileKey,
+                      .isSymbolicLinkKey,
+                  ],
+                  options: [.skipsHiddenFiles]
+              ) else {
+            return
+        }
+
+        var entries: [(url: URL, size: Int, lastAccess: Date)] = []
+        var totalSize = 0
+
+        for case let fileURL as URL in enumerator {
+            guard fileURL.pathExtension == "svg",
+                  let values = try? fileURL.resourceValues(forKeys: [
+                      .contentModificationDateKey,
+                      .fileSizeKey,
+                      .isRegularFileKey,
+                      .isSymbolicLinkKey,
+                  ]),
+                  values.isRegularFile == true,
+                  values.isSymbolicLink != true,
+                  let size = values.fileSize else {
+                continue
+            }
+
+            entries.append((
+                url: fileURL,
+                size: size,
+                lastAccess: values.contentModificationDate ?? .distantPast
+            ))
+            totalSize += size
+        }
+
+        guard totalSize > Self.maximumDiskCacheBytes else {
+            return
+        }
+
+        for entry in entries.sorted(by: { $0.lastAccess < $1.lastAccess }) {
+            do {
+                try FileManager.default.removeItem(at: entry.url)
+                totalSize -= entry.size
+            } catch {
+                continue
+            }
+
+            if totalSize <= Self.diskCacheTrimTargetBytes {
+                break
+            }
+        }
+    }
+
+    private func isValidSVG(_ svg: String) -> Bool {
+        svg.range(of: "<svg", options: .caseInsensitive) != nil
+            && svg.range(of: "</svg>", options: .caseInsensitive) != nil
     }
 
     private static var executableURL: URL? {
