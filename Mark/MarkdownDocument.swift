@@ -1,6 +1,6 @@
 //
 //  MarkdownDocument.swift
-//  Mark
+//  DiagramDown
 //
 
 import SwiftUI

@@ -1,6 +1,6 @@
 //
 //  MarkdownEditorView.swift
-//  Mark
+//  DiagramDown
 //
 
 import AppKit

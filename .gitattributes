@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.png binary
+*.pbxproj text eol=lf
+**/Contents.json text eol=lf
