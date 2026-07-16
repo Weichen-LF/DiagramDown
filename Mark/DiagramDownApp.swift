@@ -13,5 +13,9 @@ struct DiagramDownApp: App {
         DocumentGroup(newDocument: MarkdownDocument()) { file in
             ContentView(document: file.$document)
         }
+
+        Settings {
+            D2PreviewSettingsView()
+        }
     }
 }

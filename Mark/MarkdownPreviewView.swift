@@ -10,12 +10,14 @@ import WebKit
 
 struct MarkdownPreviewView: NSViewRepresentable {
     let markdown: String
+    let d2Configuration: D2RenderConfiguration
     let editorScrollPosition: ScrollSyncPosition
     let onPreviewScroll: (Double, Double, Bool) -> Void
     let onSourceLineSelected: (Int) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
+            d2Configuration: d2Configuration,
             onPreviewScroll: onPreviewScroll,
             onSourceLineSelected: onSourceLineSelected
         )
@@ -36,7 +38,11 @@ struct MarkdownPreviewView: NSViewRepresentable {
         webView.isInspectable = true
         #endif
 
-        context.coordinator.attach(to: webView, initialMarkdown: markdown)
+        context.coordinator.attach(
+            to: webView,
+            initialMarkdown: markdown,
+            d2Configuration: d2Configuration
+        )
 
         guard let previewURL = Self.previewPageURL else {
             context.coordinator.loadMissingRuntimePage()
@@ -50,7 +56,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onSourceLineSelected = onSourceLineSelected
         context.coordinator.onPreviewScroll = onPreviewScroll
-        context.coordinator.scheduleRender(markdown)
+        context.coordinator.scheduleRender(markdown, d2Configuration: d2Configuration)
         context.coordinator.scheduleScrollSync(editorScrollPosition)
     }
 
@@ -91,6 +97,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
         private var d2RenderTask: Task<Void, Never>?
         private var scrollTask: Task<Void, Never>?
         private var pendingMarkdown = ""
+        private var pendingD2Configuration: D2RenderConfiguration
+        private var appliedD2Configuration: D2RenderConfiguration
         private var pendingScrollPosition = ScrollSyncPosition.initial
         private var appliedScrollGeneration: UInt64 = 0
         private var revision: UInt64 = 0
@@ -100,16 +108,24 @@ struct MarkdownPreviewView: NSViewRepresentable {
         var onSourceLineSelected: (Int) -> Void
 
         init(
+            d2Configuration: D2RenderConfiguration,
             onPreviewScroll: @escaping (Double, Double, Bool) -> Void,
             onSourceLineSelected: @escaping (Int) -> Void
         ) {
+            pendingD2Configuration = d2Configuration
+            appliedD2Configuration = d2Configuration
             self.onPreviewScroll = onPreviewScroll
             self.onSourceLineSelected = onSourceLineSelected
         }
 
-        func attach(to webView: WKWebView, initialMarkdown: String) {
+        func attach(
+            to webView: WKWebView,
+            initialMarkdown: String,
+            d2Configuration: D2RenderConfiguration
+        ) {
             self.webView = webView
             pendingMarkdown = initialMarkdown
+            pendingD2Configuration = d2Configuration
         }
 
         func loadRuntime(at previewURL: URL) {
@@ -132,12 +148,17 @@ struct MarkdownPreviewView: NSViewRepresentable {
             webView?.loadHTMLString(fallback, baseURL: nil)
         }
 
-        func scheduleRender(_ markdown: String) {
-            guard markdown != pendingMarkdown else {
+        func scheduleRender(
+            _ markdown: String,
+            d2Configuration: D2RenderConfiguration
+        ) {
+            guard markdown != pendingMarkdown
+                    || d2Configuration != pendingD2Configuration else {
                 return
             }
 
             pendingMarkdown = markdown
+            pendingD2Configuration = d2Configuration
             guard runtimeReady else {
                 return
             }
@@ -276,7 +297,11 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 return
             }
 
-            renderD2Blocks(blocks, revision: requestedRevision)
+            renderD2Blocks(
+                blocks,
+                revision: requestedRevision,
+                configuration: appliedD2Configuration
+            )
         }
 
         private func handleScrollSyncMessage(_ message: WKScriptMessage) {
@@ -349,15 +374,18 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
             revision &+= 1
             let currentRevision = revision
+            let currentD2Configuration = pendingD2Configuration
+            appliedD2Configuration = currentD2Configuration
             cancelD2Rendering()
 
             Task {
                 do {
                     _ = try await webView.callAsyncJavaScript(
-                        "return window.previewRuntime.renderMarkdown(markdown, revision);",
+                        "return window.previewRuntime.renderMarkdown(markdown, revision, d2ConfigurationID);",
                         arguments: [
                             "markdown": pendingMarkdown,
                             "revision": currentRevision,
+                            "d2ConfigurationID": currentD2Configuration.cacheDescriptor,
                         ],
                         in: nil,
                         contentWorld: .page
@@ -418,7 +446,11 @@ struct MarkdownPreviewView: NSViewRepresentable {
             }
         }
 
-        private func renderD2Blocks(_ blocks: [D2BlockRequest], revision: UInt64) {
+        private func renderD2Blocks(
+            _ blocks: [D2BlockRequest],
+            revision: UInt64,
+            configuration: D2RenderConfiguration
+        ) {
             cancelD2Rendering()
 
             d2RenderTask = Task { [weak self] in
@@ -432,7 +464,10 @@ struct MarkdownPreviewView: NSViewRepresentable {
                     }
 
                     do {
-                        let result = try await D2RenderService.shared.render(source: block.source)
+                        let result = try await D2RenderService.shared.render(
+                            source: block.source,
+                            configuration: configuration
+                        )
                         try Task.checkCancellation()
                         guard revision == self.revision else {
                             return

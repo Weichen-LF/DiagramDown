@@ -8,7 +8,21 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- D2 preview settings
+- Disk cache, preview zoom, and export
+
+## [0.7.0] - 2026-07-16
+
+### Added
+
+- App-wide D2 preview settings for Dagre or ELK layout
+- Selectable light and dark D2 themes
+- Configurable diagram padding and sketch style
+- A Settings window with one-click default restoration
+
+### Changed
+
+- D2 memory and WebKit caches now include the active preview configuration
+- Existing D2 SVGs remain visible while a settings change is rendered
 
 ## [0.6.3] - 2026-07-16
 

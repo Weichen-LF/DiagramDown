@@ -7,10 +7,21 @@ import CryptoKit
 import Darwin
 import Foundation
 
-struct D2RenderConfiguration: Sendable {
-    enum Layout: String, Sendable {
+struct D2RenderConfiguration: Hashable, Sendable {
+    enum Layout: String, CaseIterable, Hashable, Identifiable, Sendable {
         case dagre
         case elk
+
+        nonisolated var id: String { rawValue }
+
+        nonisolated var displayName: String {
+            switch self {
+            case .dagre:
+                "Dagre"
+            case .elk:
+                "ELK"
+            }
+        }
     }
 
     let layout: Layout

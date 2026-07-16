@@ -11,13 +11,14 @@ const defaultFenceRenderer = markdown.renderer.rules.fence;
 
 let latestRevision = 0;
 let latestSource = "";
+let activeD2ConfigurationID = "default";
 let mermaidQueue = Promise.resolve();
 const d2Sources = new Map();
 const d2SVGCache = new Map();
 const maximumD2SVGCacheBytes = 32 * 1024 * 1024;
 let d2SVGCacheBytes = 0;
-let latestD2BlockIDs = [];
-let lastSuccessfulD2BlockIDs = [];
+let latestD2CacheKeys = [];
+let lastSuccessfulD2CacheKeys = [];
 let previewScrollAnimationFrame = 0;
 let previewScrollMessageFrame = 0;
 let suppressPreviewScrollMessages = false;
@@ -176,44 +177,48 @@ function requestD2Blocks(blocks, revision) {
   });
 }
 
-function cachedD2SVG(blockID) {
-  const entry = d2SVGCache.get(blockID);
+function d2CacheKey(blockID) {
+  return `${activeD2ConfigurationID}\0${blockID}`;
+}
+
+function cachedD2SVG(cacheKey) {
+  const entry = d2SVGCache.get(cacheKey);
   if (!entry) {
     return null;
   }
 
-  d2SVGCache.delete(blockID);
-  d2SVGCache.set(blockID, entry);
+  d2SVGCache.delete(cacheKey);
+  d2SVGCache.set(cacheKey, entry);
   return entry.svg;
 }
 
-function removeD2SVG(blockID) {
-  const removed = d2SVGCache.get(blockID);
+function removeD2SVG(cacheKey) {
+  const removed = d2SVGCache.get(cacheKey);
   if (!removed) {
     return;
   }
 
-  d2SVGCache.delete(blockID);
+  d2SVGCache.delete(cacheKey);
   d2SVGCacheBytes -= removed.cost;
 }
 
-function storeD2SVG(blockID, svg) {
+function storeD2SVG(cacheKey, svg) {
   const cost = new TextEncoder().encode(svg).byteLength;
   if (cost > maximumD2SVGCacheBytes) {
     return;
   }
 
-  const previous = d2SVGCache.get(blockID);
+  const previous = d2SVGCache.get(cacheKey);
   if (previous) {
-    removeD2SVG(blockID);
+    removeD2SVG(cacheKey);
   }
 
-  d2SVGCache.set(blockID, { cost, svg });
+  d2SVGCache.set(cacheKey, { cost, svg });
   d2SVGCacheBytes += cost;
 
   while (d2SVGCacheBytes > maximumD2SVGCacheBytes) {
-    const oldestBlockID = d2SVGCache.keys().next().value;
-    removeD2SVG(oldestBlockID);
+    const oldestCacheKey = d2SVGCache.keys().next().value;
+    removeD2SVG(oldestCacheKey);
   }
 }
 
@@ -305,25 +310,27 @@ function restoreD2Blocks(blocks, revision) {
     d2Sources.set(block.id, block.source);
 
     const container = document.getElementById(`${block.id}-container`);
-    const exactSVG = cachedD2SVG(block.id);
+    const cacheKey = d2CacheKey(block.id);
+    const exactSVG = cachedD2SVG(cacheKey);
     if (container && exactSVG) {
       try {
         showD2SVG(container, exactSVG);
+        lastSuccessfulD2CacheKeys[index] = cacheKey;
         continue;
       } catch {
-        removeD2SVG(block.id);
+        removeD2SVG(cacheKey);
       }
     }
 
-    const previousBlockID = lastSuccessfulD2BlockIDs[index];
-    const previousSVG = previousBlockID
-      ? cachedD2SVG(previousBlockID)
+    const previousCacheKey = lastSuccessfulD2CacheKeys[index];
+    const previousSVG = previousCacheKey
+      ? cachedD2SVG(previousCacheKey)
       : null;
     if (container && previousSVG) {
       try {
         showD2SVG(container, previousSVG);
       } catch {
-        removeD2SVG(previousBlockID);
+        removeD2SVG(previousCacheKey);
         // Leave the pending view visible if the previous SVG cannot be restored.
       }
     }
@@ -331,8 +338,8 @@ function restoreD2Blocks(blocks, revision) {
     pendingBlocks.push(block);
   }
 
-  latestD2BlockIDs = blocks.map((block) => block.id);
-  lastSuccessfulD2BlockIDs.length = blocks.length;
+  latestD2CacheKeys = blocks.map((block) => d2CacheKey(block.id));
+  lastSuccessfulD2CacheKeys.length = blocks.length;
   requestD2Blocks(pendingBlocks, revision);
 }
 
@@ -348,10 +355,11 @@ function applyD2Result(blockID, revision, svg) {
 
   try {
     showD2SVG(container, svg);
-    storeD2SVG(blockID, svg);
-    const blockIndex = latestD2BlockIDs.indexOf(blockID);
+    const cacheKey = d2CacheKey(blockID);
+    storeD2SVG(cacheKey, svg);
+    const blockIndex = latestD2CacheKeys.indexOf(cacheKey);
     if (blockIndex >= 0) {
-      lastSuccessfulD2BlockIDs[blockIndex] = blockID;
+      lastSuccessfulD2CacheKeys[blockIndex] = cacheKey;
     }
   } catch (error) {
     showD2Error(container, d2Sources.get(blockID) || "", errorMessage(error));
@@ -531,7 +539,7 @@ function postPreviewScrollPosition() {
   });
 }
 
-async function renderMarkdown(source, revision) {
+async function renderMarkdown(source, revision, d2ConfigurationID = "default") {
   const scroller = document.scrollingElement;
   const previousMaximum = Math.max(
     scroller.scrollHeight - scroller.clientHeight,
@@ -549,6 +557,7 @@ async function renderMarkdown(source, revision) {
 
   latestRevision = revision;
   latestSource = source;
+  activeD2ConfigurationID = String(d2ConfigurationID);
 
   if (source.trim().length === 0) {
     preview.replaceChildren();
@@ -577,7 +586,7 @@ async function renderMarkdown(source, revision) {
 
 colorScheme.addEventListener("change", () => {
   configureMermaid();
-  void renderMarkdown(latestSource, latestRevision);
+  void renderMarkdown(latestSource, latestRevision, activeD2ConfigurationID);
 });
 
 preview.addEventListener("click", (event) => {
