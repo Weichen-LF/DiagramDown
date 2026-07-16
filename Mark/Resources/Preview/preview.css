@@ -8,6 +8,9 @@
   --code-background: #f3f2f7;
   --link: #5b43cb;
   --table-stripe: #f8f7fb;
+  --diagram-background: #fbfaff;
+  --error: #b42318;
+  --error-background: #fff4f2;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,6 +23,9 @@
     --code-background: #29282e;
     --link: #b4a4ff;
     --table-stripe: #232327;
+    --diagram-background: #242329;
+    --error: #ffb4a9;
+    --error-background: #3a2424;
   }
 }
 
@@ -185,4 +191,49 @@ img {
   margin-top: 20vh;
   color: var(--secondary);
   text-align: center;
+}
+
+.diagram {
+  min-height: 96px;
+  margin: 0 0 1.1em;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--diagram-background);
+  overflow: auto;
+}
+
+.diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.diagram-pending {
+  padding: 22px 0;
+  color: var(--secondary);
+  text-align: center;
+}
+
+.diagram-error {
+  color: var(--error);
+}
+
+.diagram-error-message,
+.diagram-error details pre {
+  margin: 10px 0 0;
+  border-color: color-mix(in srgb, var(--error) 35%, transparent);
+  background: var(--error-background);
+  color: var(--error);
+  white-space: pre-wrap;
+}
+
+.diagram-error details {
+  margin-top: 10px;
+}
+
+.diagram-error summary {
+  cursor: pointer;
+  font-weight: 600;
 }

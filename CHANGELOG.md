@@ -8,8 +8,15 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Mermaid fenced-block rendering
 - D2 fenced-block rendering
+
+## [0.3.0] - 2026-07-16
+
+### Added
+
+- Offline Mermaid 11.16.0 rendering for fenced `mermaid` code blocks
+- Inline Mermaid parse errors with an expandable source view
+- Mermaid themes that follow the macOS light or dark appearance
 
 ## [0.2.1] - 2026-07-16
 

@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.2.1` includes the first preview MVP:
+Version `0.3.0` adds the first diagram-rendering milestone:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -17,8 +17,10 @@ Version `0.2.1` includes the first preview MVP:
 - App Sandbox access to user-selected files
 - Live split-view Markdown preview backed by a persistent `WKWebView`
 - Bundled offline `markdown-it` rendering with light and dark appearance support
+- Bundled offline Mermaid rendering for fenced `mermaid` code blocks
+- Inline Mermaid errors with expandable source and light/dark diagram themes
 
-Mermaid and D2 rendering are planned but not implemented yet.
+D2 rendering is planned but not implemented yet.
 
 ## Requirements
 
@@ -46,6 +48,7 @@ xcodebuild \
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
 - `Mark/Resources/Preview`: bundled offline preview runtime
+- `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
 - `docs/swiftui-markdown-mermaid-d2-design.md`: architecture and phased implementation plan
 - `docs/product-identity.md`: working name, icon, and visual identity notes
 
@@ -53,6 +56,6 @@ xcodebuild \
 
 1. Native Markdown editor — complete for the MVP
 2. Local WebKit Markdown preview — complete for the MVP
-3. Mermaid fenced-block rendering — next
-4. Sandboxed D2 CLI rendering
+3. Mermaid fenced-block rendering — complete for the MVP
+4. Sandboxed D2 CLI rendering — next
 5. Caching, scroll sync, themes, and export
