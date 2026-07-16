@@ -9,15 +9,23 @@ import SwiftUI
 
 struct ContentView: View {
     @Binding var document: MarkdownDocument
-    @AppStorage(D2PreviewPreferences.layoutKey) private var d2Layout =
+    @AppStorage(PreviewPreferences.appearanceKey) private var appearance =
+        AppAppearance.system.rawValue
+    @AppStorage(PreviewPreferences.markdownThemeKey) private var markdownTheme =
+        MarkdownPreviewTheme.diagramDown.rawValue
+    @AppStorage(PreviewPreferences.mermaidLightThemeKey) private var mermaidLightTheme =
+        MermaidPreviewTheme.default.rawValue
+    @AppStorage(PreviewPreferences.mermaidDarkThemeKey) private var mermaidDarkTheme =
+        MermaidPreviewTheme.dark.rawValue
+    @AppStorage(PreviewPreferences.d2LayoutKey) private var d2Layout =
         D2RenderConfiguration.Layout.dagre.rawValue
-    @AppStorage(D2PreviewPreferences.lightThemeIDKey) private var d2LightThemeID =
+    @AppStorage(PreviewPreferences.d2LightThemeIDKey) private var d2LightThemeID =
         D2RenderConfiguration.preview.lightThemeID
-    @AppStorage(D2PreviewPreferences.darkThemeIDKey) private var d2DarkThemeID =
+    @AppStorage(PreviewPreferences.d2DarkThemeIDKey) private var d2DarkThemeID =
         D2RenderConfiguration.preview.darkThemeID
-    @AppStorage(D2PreviewPreferences.paddingKey) private var d2Padding =
+    @AppStorage(PreviewPreferences.d2PaddingKey) private var d2Padding =
         D2RenderConfiguration.preview.padding
-    @AppStorage(D2PreviewPreferences.sketchKey) private var d2Sketch =
+    @AppStorage(PreviewPreferences.d2SketchKey) private var d2Sketch =
         D2RenderConfiguration.preview.sketch
     @State private var editorScrollPosition = ScrollSyncPosition.initial
     @State private var editorScrollTarget = ScrollSyncTarget.initial
@@ -33,7 +41,7 @@ struct ContentView: View {
 
             MarkdownPreviewView(
                 markdown: document.text,
-                d2Configuration: d2Configuration,
+                configuration: previewConfiguration,
                 editorScrollPosition: editorScrollPosition,
                 onPreviewScroll: synchronizeEditor,
                 onSourceLineSelected: selectSourceLine
@@ -43,13 +51,19 @@ struct ContentView: View {
         .frame(minWidth: 720, minHeight: 420)
     }
 
-    private var d2Configuration: D2RenderConfiguration {
-        D2RenderConfiguration(
-            layout: D2RenderConfiguration.Layout(rawValue: d2Layout) ?? .dagre,
-            lightThemeID: d2LightThemeID,
-            darkThemeID: d2DarkThemeID,
-            padding: min(max(d2Padding, 0), 200),
-            sketch: d2Sketch
+    private var previewConfiguration: PreviewConfiguration {
+        PreviewConfiguration(
+            appearance: AppAppearance(rawValue: appearance) ?? .system,
+            markdownTheme: MarkdownPreviewTheme(rawValue: markdownTheme) ?? .diagramDown,
+            mermaidLightTheme: MermaidPreviewTheme(rawValue: mermaidLightTheme) ?? .default,
+            mermaidDarkTheme: MermaidPreviewTheme(rawValue: mermaidDarkTheme) ?? .dark,
+            d2: D2RenderConfiguration(
+                layout: D2RenderConfiguration.Layout(rawValue: d2Layout) ?? .dagre,
+                lightThemeID: d2LightThemeID,
+                darkThemeID: d2DarkThemeID,
+                padding: min(max(d2Padding, 0), 200),
+                sketch: d2Sketch
+            )
         )
     }
 

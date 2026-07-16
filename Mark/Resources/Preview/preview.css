@@ -1,32 +1,52 @@
 :root {
   color-scheme: light dark;
-  --background: #ffffff;
-  --foreground: #24252a;
-  --secondary: #686b73;
-  --border: #dcdde2;
-  --quote-border: #7b61e8;
-  --code-background: #f3f2f7;
-  --link: #5b43cb;
-  --table-stripe: #f8f7fb;
-  --diagram-background: #fbfaff;
-  --error: #b42318;
-  --error-background: #fff4f2;
+  --background: light-dark(#ffffff, #1c1c1e);
+  --foreground: light-dark(#24252a, #e8e8eb);
+  --secondary: light-dark(#686b73, #a4a4ac);
+  --border: light-dark(#dcdde2, #3a3a40);
+  --quote-border: light-dark(#7b61e8, #a38cf4);
+  --code-background: light-dark(#f3f2f7, #29282e);
+  --link: light-dark(#5b43cb, #b4a4ff);
+  --table-stripe: light-dark(#f8f7fb, #232327);
+  --diagram-background: light-dark(#fbfaff, #242329);
+  --error: light-dark(#b42318, #ffb4a9);
+  --error-background: light-dark(#fff4f2, #3a2424);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1c1c1e;
-    --foreground: #e8e8eb;
-    --secondary: #a4a4ac;
-    --border: #3a3a40;
-    --quote-border: #a38cf4;
-    --code-background: #29282e;
-    --link: #b4a4ff;
-    --table-stripe: #232327;
-    --diagram-background: #242329;
-    --error: #ffb4a9;
-    --error-background: #3a2424;
-  }
+:root[data-appearance="light"] {
+  color-scheme: light;
+}
+
+:root[data-appearance="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-markdown-theme="github"] {
+  --background: light-dark(#ffffff, #0d1117);
+  --foreground: light-dark(#1f2328, #f0f6fc);
+  --secondary: light-dark(#59636e, #9198a1);
+  --border: light-dark(#d1d9e0, #3d444d);
+  --quote-border: light-dark(#d1d9e0, #3d444d);
+  --code-background: light-dark(#f6f8fa, #151b23);
+  --link: light-dark(#0969da, #4493f8);
+  --table-stripe: light-dark(#f6f8fa, #151b23);
+  --diagram-background: light-dark(#f6f8fa, #151b23);
+  --error: light-dark(#cf222e, #ff7b72);
+  --error-background: light-dark(#ffebe9, #3c1618);
+}
+
+:root[data-markdown-theme="paper"] {
+  --background: light-dark(#fbf7ee, #191714);
+  --foreground: light-dark(#332f29, #ede5d8);
+  --secondary: light-dark(#746b5d, #b8ad9b);
+  --border: light-dark(#ded5c5, #423d35);
+  --quote-border: light-dark(#a56a3f, #d29a6a);
+  --code-background: light-dark(#f1eadc, #24211d);
+  --link: light-dark(#8f3f26, #e3a07a);
+  --table-stripe: light-dark(#f6f0e5, #211e1a);
+  --diagram-background: light-dark(#f8f2e7, #211e1a);
+  --error: light-dark(#a9382a, #f29b89);
+  --error-background: light-dark(#fae8e2, #35211d);
 }
 
 * {
@@ -47,6 +67,30 @@ body {
   font-size: 15px;
   line-height: 1.65;
   overflow-wrap: break-word;
+}
+
+:root[data-markdown-theme="github"] body {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+:root[data-markdown-theme="github"] .markdown-body {
+  width: min(100%, 980px);
+}
+
+:root[data-markdown-theme="paper"] body {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 17px;
+  line-height: 1.72;
+}
+
+:root[data-markdown-theme="paper"] .markdown-body {
+  width: min(100%, 760px);
+}
+
+:root[data-markdown-theme="paper"] h1,
+:root[data-markdown-theme="paper"] h2 {
+  border-bottom: 0;
 }
 
 .markdown-body {

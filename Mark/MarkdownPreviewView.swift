@@ -10,14 +10,14 @@ import WebKit
 
 struct MarkdownPreviewView: NSViewRepresentable {
     let markdown: String
-    let d2Configuration: D2RenderConfiguration
+    let configuration: PreviewConfiguration
     let editorScrollPosition: ScrollSyncPosition
     let onPreviewScroll: (Double, Double, Bool) -> Void
     let onSourceLineSelected: (Int) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
-            d2Configuration: d2Configuration,
+            configuration: configuration,
             onPreviewScroll: onPreviewScroll,
             onSourceLineSelected: onSourceLineSelected
         )
@@ -33,6 +33,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.underPageBackgroundColor = .clear
+        Self.applyAppearance(self.configuration.appearance, to: webView)
 
         #if DEBUG
         webView.isInspectable = true
@@ -41,7 +42,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         context.coordinator.attach(
             to: webView,
             initialMarkdown: markdown,
-            d2Configuration: d2Configuration
+            configuration: self.configuration
         )
 
         guard let previewURL = Self.previewPageURL else {
@@ -56,7 +57,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onSourceLineSelected = onSourceLineSelected
         context.coordinator.onPreviewScroll = onPreviewScroll
-        context.coordinator.scheduleRender(markdown, d2Configuration: d2Configuration)
+        Self.applyAppearance(configuration.appearance, to: webView)
+        context.coordinator.scheduleRender(markdown, configuration: configuration)
         context.coordinator.scheduleScrollSync(editorScrollPosition)
     }
 
@@ -86,6 +88,20 @@ struct MarkdownPreviewView: NSViewRepresentable {
         )
     }
 
+    private static func applyAppearance(
+        _ appearance: AppAppearance,
+        to webView: WKWebView
+    ) {
+        switch appearance {
+        case .system:
+            webView.appearance = nil
+        case .light:
+            webView.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            webView.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private static let logger = Logger(
             subsystem: Bundle.main.bundleIdentifier ?? "me.walt.diagramdown",
@@ -97,8 +113,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
         private var d2RenderTask: Task<Void, Never>?
         private var scrollTask: Task<Void, Never>?
         private var pendingMarkdown = ""
-        private var pendingD2Configuration: D2RenderConfiguration
-        private var appliedD2Configuration: D2RenderConfiguration
+        private var pendingConfiguration: PreviewConfiguration
+        private var appliedConfiguration: PreviewConfiguration
         private var pendingScrollPosition = ScrollSyncPosition.initial
         private var appliedScrollGeneration: UInt64 = 0
         private var revision: UInt64 = 0
@@ -108,12 +124,12 @@ struct MarkdownPreviewView: NSViewRepresentable {
         var onSourceLineSelected: (Int) -> Void
 
         init(
-            d2Configuration: D2RenderConfiguration,
+            configuration: PreviewConfiguration,
             onPreviewScroll: @escaping (Double, Double, Bool) -> Void,
             onSourceLineSelected: @escaping (Int) -> Void
         ) {
-            pendingD2Configuration = d2Configuration
-            appliedD2Configuration = d2Configuration
+            pendingConfiguration = configuration
+            appliedConfiguration = configuration
             self.onPreviewScroll = onPreviewScroll
             self.onSourceLineSelected = onSourceLineSelected
         }
@@ -121,11 +137,11 @@ struct MarkdownPreviewView: NSViewRepresentable {
         func attach(
             to webView: WKWebView,
             initialMarkdown: String,
-            d2Configuration: D2RenderConfiguration
+            configuration: PreviewConfiguration
         ) {
             self.webView = webView
             pendingMarkdown = initialMarkdown
-            pendingD2Configuration = d2Configuration
+            pendingConfiguration = configuration
         }
 
         func loadRuntime(at previewURL: URL) {
@@ -150,15 +166,15 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
         func scheduleRender(
             _ markdown: String,
-            d2Configuration: D2RenderConfiguration
+            configuration: PreviewConfiguration
         ) {
             guard markdown != pendingMarkdown
-                    || d2Configuration != pendingD2Configuration else {
+                    || configuration != pendingConfiguration else {
                 return
             }
 
             pendingMarkdown = markdown
-            pendingD2Configuration = d2Configuration
+            pendingConfiguration = configuration
             guard runtimeReady else {
                 return
             }
@@ -300,7 +316,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
             renderD2Blocks(
                 blocks,
                 revision: requestedRevision,
-                configuration: appliedD2Configuration
+                configuration: appliedConfiguration.d2
             )
         }
 
@@ -374,18 +390,22 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
             revision &+= 1
             let currentRevision = revision
-            let currentD2Configuration = pendingD2Configuration
-            appliedD2Configuration = currentD2Configuration
+            let currentConfiguration = pendingConfiguration
+            appliedConfiguration = currentConfiguration
             cancelD2Rendering()
 
             Task {
                 do {
                     _ = try await webView.callAsyncJavaScript(
-                        "return window.previewRuntime.renderMarkdown(markdown, revision, d2ConfigurationID);",
+                        "return window.previewRuntime.renderMarkdown(markdown, revision, d2ConfigurationID, appearance, markdownTheme, mermaidLightTheme, mermaidDarkTheme);",
                         arguments: [
                             "markdown": pendingMarkdown,
                             "revision": currentRevision,
-                            "d2ConfigurationID": currentD2Configuration.cacheDescriptor,
+                            "d2ConfigurationID": currentConfiguration.d2.cacheDescriptor,
+                            "appearance": currentConfiguration.appearance.rawValue,
+                            "markdownTheme": currentConfiguration.markdownTheme.rawValue,
+                            "mermaidLightTheme": currentConfiguration.mermaidLightTheme.rawValue,
+                            "mermaidDarkTheme": currentConfiguration.mermaidDarkTheme.rawValue,
                         ],
                         in: nil,
                         contentWorld: .page

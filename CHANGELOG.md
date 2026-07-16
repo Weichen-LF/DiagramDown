@@ -10,6 +10,19 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Disk cache, preview zoom, and export
 
+## [0.8.0] - 2026-07-16
+
+### Added
+
+- Application appearance setting with Follow System, Light, and Dark modes
+- DiagramDown, GitHub, and Paper themes for Markdown preview
+- Independent light and dark Mermaid theme selection using bundled Mermaid themes
+
+### Changed
+
+- Appearance changes now update SwiftUI, the native editor, WebKit, Mermaid, and D2 together
+- Preview theme changes apply immediately to every open document
+
 ## [0.7.0] - 2026-07-16
 
 ### Added

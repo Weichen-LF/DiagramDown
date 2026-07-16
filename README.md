@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.7.0` adds persistent application-wide D2 preview settings:
+Version `0.8.0` adds application-wide appearance and preview themes:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -29,6 +29,9 @@ Version `0.7.0` adds persistent application-wide D2 preview settings:
 - Smooth bidirectional editor-preview scrolling with source anchors and proportional fallback
 - Click-to-source navigation from preview blocks back to the native editor with animated positioning
 - App-wide D2 layout, theme, padding, and sketch settings
+- Follow System, Light, and Dark appearance modes for the whole application
+- DiagramDown, GitHub, and Paper Markdown preview themes
+- Independent light and dark Mermaid theme selection
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
@@ -60,7 +63,7 @@ xcodebuild \
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
 - `Mark/ScrollSyncState.swift`: editor-preview scroll position and source target state
 - `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and memory cache
-- `Mark/D2PreviewSettingsView.swift`: persistent application-wide D2 preview preferences
+- `Mark/PreviewSettingsView.swift`: persistent appearance and preview preferences
 - `Mark/Resources/Preview`: bundled offline preview runtime
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
 - `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
@@ -77,5 +80,6 @@ xcodebuild \
 5. D2 memory cache and stable diagram identity — complete
 6. Editor-preview scroll synchronization — complete for the MVP
 7. D2 preview settings — complete
-8. Disk cache — next
-9. Preview zoom and export — planned
+8. Application appearance and preview themes — complete
+9. Disk cache — next
+10. Preview zoom and export — planned

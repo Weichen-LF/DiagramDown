@@ -12,6 +12,10 @@ const defaultFenceRenderer = markdown.renderer.rules.fence;
 let latestRevision = 0;
 let latestSource = "";
 let activeD2ConfigurationID = "default";
+let activeAppearance = "system";
+let activeMarkdownTheme = "diagramDown";
+let activeMermaidLightTheme = "default";
+let activeMermaidDarkTheme = "dark";
 let mermaidQueue = Promise.resolve();
 const d2Sources = new Map();
 const d2SVGCache = new Map();
@@ -27,11 +31,63 @@ function configureMermaid() {
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: "strict",
-    theme: colorScheme.matches ? "dark" : "default",
+    theme: effectiveDarkMode()
+      ? activeMermaidDarkTheme
+      : activeMermaidLightTheme,
     flowchart: {
       htmlLabels: false,
     },
   });
+}
+
+function effectiveDarkMode() {
+  if (activeAppearance === "dark") {
+    return true;
+  }
+  if (activeAppearance === "light") {
+    return false;
+  }
+  return colorScheme.matches;
+}
+
+function supportedValue(value, supported, fallback) {
+  const normalized = String(value);
+  return supported.has(normalized) ? normalized : fallback;
+}
+
+function applyPreviewConfiguration(
+  d2ConfigurationID,
+  appearance,
+  markdownTheme,
+  mermaidLightTheme,
+  mermaidDarkTheme,
+) {
+  activeD2ConfigurationID = String(d2ConfigurationID);
+  activeAppearance = supportedValue(
+    appearance,
+    new Set(["system", "light", "dark"]),
+    "system",
+  );
+  activeMarkdownTheme = supportedValue(
+    markdownTheme,
+    new Set(["diagramDown", "github", "paper"]),
+    "diagramDown",
+  );
+  const mermaidThemes = new Set(["default", "neutral", "forest", "dark", "base"]);
+  activeMermaidLightTheme = supportedValue(
+    mermaidLightTheme,
+    mermaidThemes,
+    "default",
+  );
+  activeMermaidDarkTheme = supportedValue(
+    mermaidDarkTheme,
+    mermaidThemes,
+    "dark",
+  );
+
+  document.documentElement.dataset.appearance = activeAppearance;
+  document.documentElement.dataset.markdownTheme = activeMarkdownTheme;
+  configureMermaid();
 }
 
 configureMermaid();
@@ -539,7 +595,15 @@ function postPreviewScrollPosition() {
   });
 }
 
-async function renderMarkdown(source, revision, d2ConfigurationID = "default") {
+async function renderMarkdown(
+  source,
+  revision,
+  d2ConfigurationID = "default",
+  appearance = "system",
+  markdownTheme = "diagramDown",
+  mermaidLightTheme = "default",
+  mermaidDarkTheme = "dark",
+) {
   const scroller = document.scrollingElement;
   const previousMaximum = Math.max(
     scroller.scrollHeight - scroller.clientHeight,
@@ -557,7 +621,13 @@ async function renderMarkdown(source, revision, d2ConfigurationID = "default") {
 
   latestRevision = revision;
   latestSource = source;
-  activeD2ConfigurationID = String(d2ConfigurationID);
+  applyPreviewConfiguration(
+    d2ConfigurationID,
+    appearance,
+    markdownTheme,
+    mermaidLightTheme,
+    mermaidDarkTheme,
+  );
 
   if (source.trim().length === 0) {
     preview.replaceChildren();
@@ -585,8 +655,18 @@ async function renderMarkdown(source, revision, d2ConfigurationID = "default") {
 }
 
 colorScheme.addEventListener("change", () => {
-  configureMermaid();
-  void renderMarkdown(latestSource, latestRevision, activeD2ConfigurationID);
+  if (activeAppearance !== "system") {
+    return;
+  }
+  void renderMarkdown(
+    latestSource,
+    latestRevision,
+    activeD2ConfigurationID,
+    activeAppearance,
+    activeMarkdownTheme,
+    activeMermaidLightTheme,
+    activeMermaidDarkTheme,
+  );
 });
 
 preview.addEventListener("click", (event) => {
