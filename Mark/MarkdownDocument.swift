@@ -6,6 +6,22 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum MarkdownFileCodec {
+    static func decode(_ data: Data) throws -> String {
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
+        return text
+    }
+
+    static func encode(_ text: String) throws -> Data {
+        guard let data = text.data(using: .utf8) else {
+            throw CocoaError(.fileWriteInapplicableStringEncoding)
+        }
+        return data
+    }
+}
+
 struct MarkdownDocument: FileDocument {
     static var readableContentTypes: [UTType] {
         [.markdown]
@@ -22,18 +38,11 @@ struct MarkdownDocument: FileDocument {
             throw CocoaError(.fileReadCorruptFile)
         }
 
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw CocoaError(.fileReadInapplicableStringEncoding)
-        }
-
-        self.text = text
+        text = try MarkdownFileCodec.decode(data)
     }
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        guard let data = text.data(using: .utf8) else {
-            throw CocoaError(.fileWriteInapplicableStringEncoding)
-        }
-
+        let data = try MarkdownFileCodec.encode(text)
         return FileWrapper(regularFileWithContents: data)
     }
 }

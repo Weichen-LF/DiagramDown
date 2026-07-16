@@ -16,6 +16,21 @@ enum PreviewZoom {
     static func clamped(_ value: Int) -> Int {
         min(max(value, minimum), maximum)
     }
+
+    static func scaled(_ value: Int, by scale: Double) -> Int {
+        guard scale.isFinite else {
+            return clamped(value)
+        }
+
+        let scaledValue = Double(value) * scale
+        if scaledValue <= Double(minimum) {
+            return minimum
+        }
+        if scaledValue >= Double(maximum) {
+            return maximum
+        }
+        return Int(scaledValue.rounded())
+    }
 }
 
 @MainActor

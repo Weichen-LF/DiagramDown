@@ -947,6 +947,7 @@ SVG 不适合直接按完整字符串比较，因为版本升级可能改变无�
 
 ### Phase 6：发布准备
 
+- Swift 单元测试和 Web 预览运行时结构测试
 - Hardened Runtime
 - App Sandbox 验证
 - 公证和签名

@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.14.0` adds trackpad pinch zoom throughout the preview experience:
+Version `0.15.0` establishes the first automated stability suite:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -39,6 +39,8 @@ Version `0.14.0` adds trackpad pinch zoom throughout the preview experience:
 - Per-window Editor Only, Editor and Preview, and Preview Only layouts
 - Focused Mermaid and D2 diagram viewer with fit, 25%–400% zoom, and keyboard controls
 - Two-finger trackpad pinch zoom for the Markdown preview and focused diagram viewer
+- Native unit tests for zoom, layouts, document encoding, D2 configuration, and scroll state
+- Structural preview-runtime tests for offline assets, CSP, WebKit bridges, diagram controls, and gestures
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
@@ -47,6 +49,7 @@ The bundled D2 helper currently supports Apple Silicon Macs. A universal helper 
 - macOS 15.0 or later
 - Apple Silicon for D2 rendering
 - Xcode with the macOS SDK and SwiftUI support
+- Node.js 18 or later for preview-runtime tests
 
 ## Build
 
@@ -61,6 +64,16 @@ xcodebuild \
   build
 ```
 
+## Test
+
+Run the complete Swift and preview-runtime test suite:
+
+```sh
+./Scripts/test.sh
+```
+
+The Swift tests can also be run from Xcode with the `Mark` scheme.
+
 ## Project layout
 
 - `Mark/MarkdownDocument.swift`: Markdown file lifecycle
@@ -73,6 +86,9 @@ xcodebuild \
 - `Mark/PreviewSettingsView.swift`: persistent appearance and preview preferences
 - `Mark/PreviewCommands.swift`: preview zoom and PDF export commands
 - `Mark/Resources/Preview`: bundled offline preview runtime
+- `MarkTests`: native unit tests for core document and preview behavior
+- `Tests/PreviewRuntimeTests.mjs`: offline preview structure and bridge regression tests
+- `Scripts/test.sh`: complete local test entry point
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
 - `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
 - `docs/examples/d2.md`: D2 rendering smoke-test document
@@ -95,5 +111,5 @@ xcodebuild \
 12. Full Markdown preview PDF export — complete
 13. Document view modes and focused diagram zoom — complete
 14. Trackpad pinch zoom across preview surfaces — complete
-15. Stability and automated testing — next
-16. Signing, notarization, and release preparation — planned
+15. Stability and automated testing — complete for the first suite
+16. Signing, notarization, and release preparation — next

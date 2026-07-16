@@ -8,8 +8,20 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Stability and automated testing
 - Signing, notarization, and release preparation
+
+## [0.15.0] - 2026-07-16
+
+### Added
+
+- A native `MarkTests` unit-test target with coverage for preview zoom, document layouts, UTF-8 Markdown storage, D2 configuration, error messages, and scroll state
+- Node-based preview-runtime regression tests for bundled assets, content security policy, WebKit message handlers, exported entry points, diagram controls, print exclusions, and trackpad gestures
+- `Scripts/test.sh` as a single entry point for JavaScript checks and macOS unit tests
+
+### Changed
+
+- Markdown UTF-8 encoding and decoding now use a directly testable codec
+- Trackpad zoom arithmetic now uses a bounded, directly testable helper
 
 ## [0.14.0] - 2026-07-16
 

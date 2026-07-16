@@ -10,6 +10,16 @@
 		D20000010000000000000001 /* d2 in Embed Helpers */ = {isa = PBXBuildFile; fileRef = D20000020000000000000002 /* d2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B15000100000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A19D4CBF3008804300E085C0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A19D4CC63008804300E085C0;
+			remoteInfo = Mark;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		D20000040000000000000004 /* Embed Helpers */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -26,6 +36,7 @@
 
 /* Begin PBXFileReference section */
 		A19D4CC73008804300E085C0 /* DiagramDown.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DiagramDown.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B15000010000000000000001 /* MarkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MarkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D20000020000000000000002 /* d2 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = d2; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -35,10 +46,22 @@
 			path = Mark;
 			sourceTree = "<group>";
 		};
+		B15000020000000000000002 /* MarkTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MarkTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A19D4CC43008804300E085C0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B15000030000000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -52,6 +75,7 @@
 			isa = PBXGroup;
 			children = (
 				A19D4CC93008804300E085C0 /* Mark */,
+				B15000020000000000000002 /* MarkTests */,
 				D20000030000000000000003 /* Helpers */,
 				A19D4CC83008804300E085C0 /* Products */,
 			);
@@ -61,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				A19D4CC73008804300E085C0 /* DiagramDown.app */,
+				B15000010000000000000001 /* MarkTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -99,6 +124,29 @@
 			productReference = A19D4CC73008804300E085C0 /* DiagramDown.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B15000060000000000000006 /* MarkTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B15000070000000000000007 /* Build configuration list for PBXNativeTarget "MarkTests" */;
+			buildPhases = (
+				B15000050000000000000005 /* Sources */,
+				B15000030000000000000003 /* Frameworks */,
+				B15000040000000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B15000110000000000000011 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B15000020000000000000002 /* MarkTests */,
+			);
+			name = MarkTests;
+			packageProductDependencies = (
+			);
+			productName = MarkTests;
+			productReference = B15000010000000000000001 /* MarkTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -111,6 +159,10 @@
 				TargetAttributes = {
 					A19D4CC63008804300E085C0 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					B15000060000000000000006 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = A19D4CC63008804300E085C0;
 					};
 				};
 			};
@@ -129,12 +181,20 @@
 			projectRoot = "";
 			targets = (
 				A19D4CC63008804300E085C0 /* Mark */,
+				B15000060000000000000006 /* MarkTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A19D4CC53008804300E085C0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B15000040000000000000004 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -151,7 +211,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B15000050000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B15000110000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A19D4CC63008804300E085C0 /* Mark */;
+			targetProxy = B15000100000000000000010 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A19D4CD03008804400E085C0 /* Debug */ = {
@@ -294,7 +369,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.14.0;
+				MARKETING_VERSION = 0.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = me.walt.diagramdown;
 				PRODUCT_NAME = DiagramDown;
 				REGISTER_APP_GROUPS = YES;
@@ -328,7 +403,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.14.0;
+				MARKETING_VERSION = 0.15.0;
 				PRODUCT_BUNDLE_IDENTIFIER = me.walt.diagramdown;
 				PRODUCT_NAME = DiagramDown;
 				REGISTER_APP_GROUPS = YES;
@@ -339,6 +414,42 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		B15000080000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QM6DZQY23F;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.walt.diagramdown.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DiagramDown.app/Contents/MacOS/DiagramDown";
+			};
+			name = Debug;
+		};
+		B15000090000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = QM6DZQY23F;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.walt.diagramdown.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DiagramDown.app/Contents/MacOS/DiagramDown";
 			};
 			name = Release;
 		};
@@ -359,6 +470,15 @@
 			buildConfigurations = (
 				A19D4CD33008804400E085C0 /* Debug */,
 				A19D4CD43008804400E085C0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B15000070000000000000007 /* Build configuration list for PBXNativeTarget "MarkTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B15000080000000000000008 /* Debug */,
+				B15000090000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

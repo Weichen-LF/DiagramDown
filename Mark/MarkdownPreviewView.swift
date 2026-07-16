@@ -351,14 +351,14 @@ struct MarkdownPreviewView: NSViewRepresentable {
                       (0.1...10).contains(scale) else {
                     return
                 }
-                applyGestureZoom(Double(gestureStartZoom) * scale)
+                applyGestureZoom(PreviewZoom.scaled(gestureStartZoom, by: scale))
             case "delta":
                 guard let scale = (payload["scale"] as? NSNumber)?.doubleValue,
                       scale.isFinite,
                       (0.5...2).contains(scale) else {
                     return
                 }
-                applyGestureZoom(Double(currentZoom) * scale)
+                applyGestureZoom(PreviewZoom.scaled(currentZoom, by: scale))
             case "end":
                 gestureStartZoom = currentZoom
             default:
@@ -366,8 +366,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
             }
         }
 
-        private func applyGestureZoom(_ value: Double) {
-            let nextZoom = PreviewZoom.clamped(Int(value.rounded()))
+        private func applyGestureZoom(_ nextZoom: Int) {
             guard nextZoom != currentZoom else {
                 return
             }
