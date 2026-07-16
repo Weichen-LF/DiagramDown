@@ -12,6 +12,7 @@ const defaultFenceRenderer = markdown.renderer.rules.fence;
 let latestRevision = 0;
 let latestSource = "";
 let mermaidQueue = Promise.resolve();
+const d2Sources = new Map();
 
 function configureMermaid() {
   mermaid.initialize({
@@ -30,18 +31,29 @@ markdown.renderer.rules.fence = (tokens, index, options, env, self) => {
   const token = tokens[index];
   const language = token.info.trim().split(/\s+/u, 1)[0].toLowerCase();
 
-  if (language !== "mermaid") {
-    return defaultFenceRenderer(tokens, index, options, env, self);
+  if (language === "mermaid") {
+    const blockIndex = env.mermaidBlocks.length;
+    const blockID = `mermaid-${env.revision}-${blockIndex}`;
+    env.mermaidBlocks.push({
+      id: blockID,
+      source: token.content,
+    });
+
+    return `<div id="${blockID}-container" class="diagram mermaid-diagram" data-block-id="${blockID}" aria-label="Mermaid diagram"><div class="diagram-pending">Rendering Mermaid…</div></div>`;
   }
 
-  const blockIndex = env.mermaidBlocks.length;
-  const blockID = `mermaid-${env.revision}-${blockIndex}`;
-  env.mermaidBlocks.push({
-    id: blockID,
-    source: token.content,
-  });
+  if (language === "d2") {
+    const blockIndex = env.d2Blocks.length;
+    const blockID = `d2-${env.revision}-${blockIndex}`;
+    env.d2Blocks.push({
+      id: blockID,
+      source: token.content,
+    });
 
-  return `<div id="${blockID}-container" class="diagram mermaid-diagram" data-block-id="${blockID}" aria-label="Mermaid diagram"><div class="diagram-pending">Rendering Mermaid…</div></div>`;
+    return `<div id="${blockID}-container" class="diagram d2-diagram" data-block-id="${blockID}" aria-label="D2 diagram"><div class="diagram-pending">Rendering D2…</div></div>`;
+  }
+
+  return defaultFenceRenderer(tokens, index, options, env, self);
 };
 
 function errorMessage(error) {
@@ -103,6 +115,141 @@ async function renderMermaidBlocks(blocks, revision) {
   }
 }
 
+function requestD2Blocks(blocks, revision) {
+  d2Sources.clear();
+  for (const block of blocks) {
+    d2Sources.set(block.id, block.source);
+  }
+
+  if (blocks.length === 0) {
+    return;
+  }
+
+  const handler = window.webkit?.messageHandlers?.d2;
+  if (!handler) {
+    for (const block of blocks) {
+      const container = document.getElementById(`${block.id}-container`);
+      if (container) {
+        showD2Error(container, block.source, "The native D2 renderer is unavailable.");
+      }
+    }
+    return;
+  }
+
+  handler.postMessage({
+    blocks,
+    revision,
+  });
+}
+
+function sanitizedSVG(source) {
+  const parsed = new DOMParser().parseFromString(source, "image/svg+xml");
+  const root = parsed.documentElement;
+  if (parsed.querySelector("parsererror") || root.localName.toLowerCase() !== "svg") {
+    throw new Error("D2 returned invalid SVG markup.");
+  }
+
+  const blockedElements = new Set([
+    "audio",
+    "embed",
+    "foreignobject",
+    "iframe",
+    "object",
+    "script",
+    "video",
+  ]);
+  const elements = [root, ...root.querySelectorAll("*")];
+
+  for (const element of elements) {
+    if (blockedElements.has(element.localName.toLowerCase())) {
+      element.remove();
+      continue;
+    }
+
+    for (const attribute of [...element.attributes]) {
+      const attributeName = attribute.localName.toLowerCase();
+      const attributeValue = attribute.value.trim();
+      const normalizedValue = attributeValue.toLowerCase();
+
+      if (attributeName.startsWith("on")) {
+        element.removeAttributeNode(attribute);
+        continue;
+      }
+
+      if (attributeName === "href") {
+        const isLink = element.localName.toLowerCase() === "a";
+        const allowedLink = isLink && /^(https?:|mailto:|#)/u.test(normalizedValue);
+        const allowedResource = /^(data:image\/|#)/u.test(normalizedValue);
+        if (!allowedLink && !allowedResource) {
+          element.removeAttributeNode(attribute);
+        }
+        continue;
+      }
+
+      if (attributeName === "style"
+          && /url\(\s*["']?(?!#|data:image\/)/iu.test(attributeValue)) {
+        element.removeAttributeNode(attribute);
+      }
+    }
+  }
+
+  return document.importNode(root, true);
+}
+
+function showD2Error(container, source, message) {
+  const errorView = document.createElement("div");
+  errorView.className = "diagram-error";
+
+  const title = document.createElement("strong");
+  title.textContent = "D2 rendering failed";
+
+  const errorMessageView = document.createElement("pre");
+  errorMessageView.className = "diagram-error-message";
+  errorMessageView.textContent = message || "Unknown D2 error";
+
+  const sourceDisclosure = document.createElement("details");
+  const sourceSummary = document.createElement("summary");
+  const sourceCode = document.createElement("pre");
+  sourceSummary.textContent = "Show source";
+  sourceCode.textContent = source;
+  sourceDisclosure.append(sourceSummary, sourceCode);
+
+  errorView.append(title, errorMessageView, sourceDisclosure);
+  container.replaceChildren(errorView);
+}
+
+function applyD2Result(blockID, revision, svg) {
+  if (revision !== latestRevision) {
+    return false;
+  }
+
+  const container = document.getElementById(`${blockID}-container`);
+  if (!container) {
+    return false;
+  }
+
+  try {
+    container.replaceChildren(sanitizedSVG(svg));
+  } catch (error) {
+    showD2Error(container, d2Sources.get(blockID) || "", errorMessage(error));
+  }
+  return true;
+}
+
+function applyD2Error(blockID, revision, message) {
+  if (revision !== latestRevision) {
+    return false;
+  }
+
+  const container = document.getElementById(`${blockID}-container`);
+  if (!container) {
+    return false;
+  }
+
+  showD2Error(container, d2Sources.get(blockID) || "", message);
+  return true;
+}
+
 function restoreScrollRatio(scroller, ratio) {
   requestAnimationFrame(() => {
     const nextMaximum = Math.max(
@@ -123,6 +270,7 @@ async function renderMarkdown(source, revision) {
     ? scroller.scrollTop / previousMaximum
     : 0;
   const environment = {
+    d2Blocks: [],
     mermaidBlocks: [],
     revision,
   };
@@ -141,6 +289,7 @@ async function renderMarkdown(source, revision) {
   }
 
   preview.dataset.revision = String(revision);
+  requestD2Blocks(environment.d2Blocks, revision);
 
   mermaidQueue = mermaidQueue
     .catch(() => undefined)
@@ -160,5 +309,7 @@ colorScheme.addEventListener("change", () => {
 });
 
 window.previewRuntime = Object.freeze({
+  applyD2Error,
+  applyD2Result,
   renderMarkdown,
 });

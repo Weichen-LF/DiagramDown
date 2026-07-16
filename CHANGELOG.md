@@ -8,7 +8,17 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- D2 fenced-block rendering
+- Diagram caching and scroll synchronization
+
+## [0.4.0] - 2026-07-16
+
+### Added
+
+- Bundled D2 0.7.1 arm64 helper with sandbox inheritance and Hardened Runtime signing
+- D2 fenced-block rendering through a native WebKit message bridge
+- D2 process cancellation, a 6 second timeout, and input/output size limits
+- Inline D2 errors with expandable source
+- SVG sanitization before D2 output is inserted into the preview
 
 ## [0.3.1] - 2026-07-16
 

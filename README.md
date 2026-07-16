@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.3.1` includes the first diagram-rendering milestone:
+Version `0.4.0` completes the first diagram-rendering MVP:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -19,12 +19,15 @@ Version `0.3.1` includes the first diagram-rendering milestone:
 - Bundled offline `markdown-it` rendering with light and dark appearance support
 - Bundled offline Mermaid rendering for fenced `mermaid` code blocks
 - Inline Mermaid errors with expandable source and light/dark diagram themes
+- Bundled D2 0.7.1 rendering for fenced `d2` code blocks
+- Sandboxed D2 execution with cancellation, timeouts, size limits, and inline errors
 
-D2 rendering is planned but not implemented yet.
+The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
 ## Requirements
 
 - macOS 15.0 or later
+- Apple Silicon for D2 rendering
 - Xcode with the macOS SDK and SwiftUI support
 
 ## Build
@@ -37,7 +40,6 @@ xcodebuild \
   -scheme Mark \
   -configuration Debug \
   -derivedDataPath /tmp/DiagramDownDerivedData \
-  CODE_SIGNING_ALLOWED=NO \
   build
 ```
 
@@ -47,8 +49,11 @@ xcodebuild \
 - `Mark/MarkdownEditorView.swift`: native AppKit editor embedded in SwiftUI
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
+- `Mark/D2RenderService.swift`: bounded D2 process execution and temporary-file lifecycle
 - `Mark/Resources/Preview`: bundled offline preview runtime
+- `Helpers/d2`: sandbox-inheriting D2 arm64 helper
 - `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
+- `docs/examples/d2.md`: D2 rendering smoke-test document
 - `docs/swiftui-markdown-mermaid-d2-design.md`: architecture and phased implementation plan
 - `docs/product-identity.md`: working name, icon, and visual identity notes
 
@@ -57,5 +62,5 @@ xcodebuild \
 1. Native Markdown editor — complete for the MVP
 2. Local WebKit Markdown preview — complete for the MVP
 3. Mermaid fenced-block rendering — complete for the MVP
-4. Sandboxed D2 CLI rendering — next
-5. Caching, scroll sync, themes, and export
+4. Sandboxed D2 CLI rendering — complete for the MVP
+5. Caching, scroll sync, themes, and export — next
