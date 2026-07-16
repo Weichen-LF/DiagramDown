@@ -177,6 +177,7 @@ struct ContentView: View {
             documentBaseName: documentBaseName,
             previewController: previewController,
             editorScrollPosition: editorScrollPosition,
+            onZoomChanged: { previewZoom = PreviewZoom.clamped($0) },
             onPreviewScroll: synchronizeEditor,
             onSourceLineSelected: selectSourceLine
         )

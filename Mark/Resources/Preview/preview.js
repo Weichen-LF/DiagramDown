@@ -28,6 +28,8 @@ let previewScrollAnimationFrame = 0;
 let previewScrollMessageFrame = 0;
 let suppressPreviewScrollMessages = false;
 let activeDiagramViewer = null;
+let trackpadGestureActive = false;
+let trackpadGestureTarget = "preview";
 
 const diagramZoomMinimum = 0.25;
 const diagramZoomMaximum = 4;
@@ -286,6 +288,7 @@ function openDiagramViewer(container, kind, returnFocus) {
   viewport.appendChild(canvas);
 
   let zoom = 1;
+  let gestureStartZoom = zoom;
   let usingFitZoom = true;
   let zoomOutButton = null;
   let zoomInButton = null;
@@ -390,6 +393,22 @@ function openDiagramViewer(container, kind, returnFocus) {
     }
   };
 
+  const beginGestureZoom = () => {
+    gestureStartZoom = zoom;
+  };
+
+  const changeGestureZoom = (scale) => {
+    if (Number.isFinite(scale)) {
+      applyZoom(gestureStartZoom * scale);
+    }
+  };
+
+  const applyGestureZoomDelta = (scale) => {
+    if (Number.isFinite(scale)) {
+      applyZoom(zoom * scale);
+    }
+  };
+
   const fitButton = makeButton("Fit", "Fit diagram to window", fitDiagram);
   zoomOutButton = makeButton("−", "Zoom out diagram", () => {
     applyZoom(zoom - diagramZoomStep);
@@ -413,7 +432,12 @@ function openDiagramViewer(container, kind, returnFocus) {
   document.body.appendChild(overlay);
   window.addEventListener("keydown", handleKeyDown);
   window.addEventListener("resize", handleResize);
-  activeDiagramViewer = { close };
+  activeDiagramViewer = {
+    applyGestureZoomDelta,
+    beginGestureZoom,
+    changeGestureZoom,
+    close,
+  };
 
   requestAnimationFrame(() => {
     fitDiagram();
@@ -1001,7 +1025,70 @@ preview.addEventListener("click", (event) => {
   });
 });
 
-window.addEventListener("wheel", cancelPreviewScrollAnimation, { passive: true });
+function postPreviewZoomGesture(phase, scale = 1) {
+  window.webkit?.messageHandlers?.previewZoom?.postMessage({ phase, scale });
+}
+
+function handleGestureStart(event) {
+  event.preventDefault();
+  cancelPreviewScrollAnimation();
+  trackpadGestureActive = true;
+  trackpadGestureTarget = activeDiagramViewer ? "diagram" : "preview";
+
+  if (trackpadGestureTarget === "diagram") {
+    activeDiagramViewer?.beginGestureZoom();
+  } else {
+    postPreviewZoomGesture("start");
+  }
+}
+
+function handleGestureChange(event) {
+  event.preventDefault();
+  const scale = Number(event.scale);
+  if (!Number.isFinite(scale)) {
+    return;
+  }
+
+  if (trackpadGestureTarget === "diagram") {
+    activeDiagramViewer?.changeGestureZoom(scale);
+  } else {
+    postPreviewZoomGesture("change", scale);
+  }
+}
+
+function handleGestureEnd(event) {
+  event.preventDefault();
+  if (trackpadGestureTarget === "preview") {
+    postPreviewZoomGesture("end");
+  }
+  trackpadGestureActive = false;
+  trackpadGestureTarget = "preview";
+}
+
+function handleWheel(event) {
+  cancelPreviewScrollAnimation();
+  if (!event.ctrlKey) {
+    return;
+  }
+
+  event.preventDefault();
+  if (trackpadGestureActive) {
+    return;
+  }
+
+  const scale = Math.min(Math.max(Math.exp(-event.deltaY * 0.01), 0.85), 1.15);
+  if (activeDiagramViewer) {
+    activeDiagramViewer.applyGestureZoomDelta(scale);
+  } else {
+    postPreviewZoomGesture("delta", scale);
+  }
+}
+
+window.addEventListener("gesturestart", handleGestureStart, { passive: false });
+window.addEventListener("gesturechange", handleGestureChange, { passive: false });
+window.addEventListener("gestureend", handleGestureEnd, { passive: false });
+window.addEventListener("gesturecancel", handleGestureEnd, { passive: false });
+window.addEventListener("wheel", handleWheel, { passive: false });
 window.addEventListener("pointerdown", cancelPreviewScrollAnimation, { passive: true });
 window.addEventListener("scroll", () => {
   if (suppressPreviewScrollMessages || previewScrollMessageFrame !== 0) {

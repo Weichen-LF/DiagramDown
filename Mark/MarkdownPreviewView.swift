@@ -16,13 +16,16 @@ struct MarkdownPreviewView: NSViewRepresentable {
     let documentBaseName: String
     let previewController: PreviewController
     let editorScrollPosition: ScrollSyncPosition
+    let onZoomChanged: (Int) -> Void
     let onPreviewScroll: (Double, Double, Bool) -> Void
     let onSourceLineSelected: (Int) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             configuration: configuration,
+            zoom: zoom,
             documentBaseName: documentBaseName,
+            onZoomChanged: onZoomChanged,
             onPreviewScroll: onPreviewScroll,
             onSourceLineSelected: onSourceLineSelected
         )
@@ -34,6 +37,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.userContentController.add(context.coordinator, name: "d2")
         configuration.userContentController.add(context.coordinator, name: "exportSVG")
+        configuration.userContentController.add(context.coordinator, name: "previewZoom")
         configuration.userContentController.add(context.coordinator, name: "scrollSync")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -65,6 +69,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onSourceLineSelected = onSourceLineSelected
         context.coordinator.onPreviewScroll = onPreviewScroll
+        context.coordinator.onZoomChanged = onZoomChanged
+        context.coordinator.currentZoom = PreviewZoom.clamped(zoom)
         context.coordinator.documentBaseName = documentBaseName
         Self.applyZoom(zoom, to: webView)
         Self.applyAppearance(configuration.appearance, to: webView)
@@ -79,6 +85,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         coordinator.detachPreviewController()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "d2")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "exportSVG")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "previewZoom")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollSync")
         webView.navigationDelegate = nil
     }
@@ -141,20 +148,28 @@ struct MarkdownPreviewView: NSViewRepresentable {
         private var runtimeReady = false
         private var savePanelPresented = false
         private var pdfExportInProgress = false
+        private var gestureStartZoom: Int
         private weak var previewController: PreviewController?
+        var currentZoom: Int
         var documentBaseName: String
+        var onZoomChanged: (Int) -> Void
         var onPreviewScroll: (Double, Double, Bool) -> Void
         var onSourceLineSelected: (Int) -> Void
 
         init(
             configuration: PreviewConfiguration,
+            zoom: Int,
             documentBaseName: String,
+            onZoomChanged: @escaping (Int) -> Void,
             onPreviewScroll: @escaping (Double, Double, Bool) -> Void,
             onSourceLineSelected: @escaping (Int) -> Void
         ) {
             pendingConfiguration = configuration
             appliedConfiguration = configuration
+            currentZoom = PreviewZoom.clamped(zoom)
+            gestureStartZoom = PreviewZoom.clamped(zoom)
             self.documentBaseName = documentBaseName
+            self.onZoomChanged = onZoomChanged
             self.onPreviewScroll = onPreviewScroll
             self.onSourceLineSelected = onSourceLineSelected
         }
@@ -312,11 +327,52 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 handleD2Message(message)
             case "exportSVG":
                 handleExportSVGMessage(message)
+            case "previewZoom":
+                handlePreviewZoomMessage(message)
             case "scrollSync":
                 handleScrollSyncMessage(message)
             default:
                 break
             }
+        }
+
+        private func handlePreviewZoomMessage(_ message: WKScriptMessage) {
+            guard let payload = message.body as? [String: Any],
+                  let phase = payload["phase"] as? String else {
+                return
+            }
+
+            switch phase {
+            case "start":
+                gestureStartZoom = currentZoom
+            case "change":
+                guard let scale = (payload["scale"] as? NSNumber)?.doubleValue,
+                      scale.isFinite,
+                      (0.1...10).contains(scale) else {
+                    return
+                }
+                applyGestureZoom(Double(gestureStartZoom) * scale)
+            case "delta":
+                guard let scale = (payload["scale"] as? NSNumber)?.doubleValue,
+                      scale.isFinite,
+                      (0.5...2).contains(scale) else {
+                    return
+                }
+                applyGestureZoom(Double(currentZoom) * scale)
+            case "end":
+                gestureStartZoom = currentZoom
+            default:
+                return
+            }
+        }
+
+        private func applyGestureZoom(_ value: Double) {
+            let nextZoom = PreviewZoom.clamped(Int(value.rounded()))
+            guard nextZoom != currentZoom else {
+                return
+            }
+            currentZoom = nextZoom
+            onZoomChanged(nextZoom)
         }
 
         private func handleExportSVGMessage(_ message: WKScriptMessage) {

@@ -939,6 +939,7 @@ SVG 不适合直接按完整字符串比较，因为版本升级可能改变无�
 - Editor Only / Editor and Preview / Preview Only 三种窗口布局
 - 50%–200% 持久化预览缩放
 - Mermaid/D2 单图聚焦预览，支持适应窗口和 25%–400% 独立缩放
+- Markdown 预览和单图聚焦预览均支持触控板双指缩放
 - Mermaid/D2 单图 SVG 导出
 - 整篇 Markdown 预览分页导出 PDF
 

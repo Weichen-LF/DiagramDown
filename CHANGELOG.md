@@ -11,6 +11,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Stability and automated testing
 - Signing, notarization, and release preparation
 
+## [0.14.0] - 2026-07-16
+
+### Added
+
+- Two-finger trackpad pinch zoom for the full Markdown preview
+- Independent trackpad pinch zoom inside focused Mermaid and D2 diagram previews
+- WebKit gesture and control-wheel handling with the existing preview zoom limits
+
+### Changed
+
+- Markdown pinch gestures now update the toolbar, Settings value, and persisted zoom preference
+
 ## [0.13.0] - 2026-07-16
 
 ### Added
