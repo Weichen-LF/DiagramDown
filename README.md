@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.5.1` adds the first diagram cache and stable preview identities:
+Version `0.6.1` adds source-aware synchronization between the editor and preview:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -24,6 +24,9 @@ Version `0.5.1` adds the first diagram cache and stable preview identities:
 - 32 MB in-memory LRU cache for repeated D2 renders
 - Stable Mermaid and D2 block identities across preview revisions
 - Flicker-free D2 updates that reuse unchanged SVGs and retain the previous diagram while edited source renders
+- Source-line anchors for rendered Markdown and diagram blocks
+- Smooth bidirectional editor-preview scrolling with source anchors and proportional fallback
+- Click-to-source navigation from preview blocks back to the native editor with animated positioning
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
@@ -52,6 +55,7 @@ xcodebuild \
 - `Mark/MarkdownEditorView.swift`: native AppKit editor embedded in SwiftUI
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
+- `Mark/ScrollSyncState.swift`: editor-preview scroll position and source target state
 - `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and memory cache
 - `Mark/Resources/Preview`: bundled offline preview runtime
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
@@ -67,6 +71,6 @@ xcodebuild \
 3. Mermaid fenced-block rendering — complete for the MVP
 4. Sandboxed D2 CLI rendering — complete for the MVP
 5. D2 memory cache and stable diagram identity — complete
-6. Editor-preview scroll synchronization — next
-7. D2 preview settings — planned
+6. Editor-preview scroll synchronization — complete for the MVP
+7. D2 preview settings — next
 8. Disk cache, preview zoom, and export — planned

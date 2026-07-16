@@ -8,8 +8,28 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Editor-preview scroll synchronization
 - D2 preview settings
+
+## [0.6.1] - 2026-07-16
+
+### Changed
+
+- Replaced the fixed 20 ms scroll debounce with immediate updates and animation-frame coordination
+- Added smooth editor-to-preview scrolling and animated preview click-to-source positioning
+- Added live preview-to-editor synchronization for user-initiated preview scrolling
+- Suppressed reverse updates during programmatic scrolling to prevent feedback loops
+
+## [0.6.0] - 2026-07-16
+
+### Added
+
+- Source-line anchors on rendered Markdown, Mermaid, and D2 blocks
+- Debounced editor-to-preview scroll synchronization with anchor interpolation and proportional fallback
+- Click-to-source navigation from preview blocks to the corresponding editor line
+
+### Changed
+
+- Scroll position updates no longer trigger unnecessary Markdown preview renders
 
 ## [0.5.1] - 2026-07-16
 

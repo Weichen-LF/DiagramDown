@@ -10,9 +10,15 @@ import WebKit
 
 struct MarkdownPreviewView: NSViewRepresentable {
     let markdown: String
+    let editorScrollPosition: ScrollSyncPosition
+    let onPreviewScroll: (Double, Double, Bool) -> Void
+    let onSourceLineSelected: (Int) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(
+            onPreviewScroll: onPreviewScroll,
+            onSourceLineSelected: onSourceLineSelected
+        )
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -20,6 +26,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         configuration.websiteDataStore = .nonPersistent()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.userContentController.add(context.coordinator, name: "d2")
+        configuration.userContentController.add(context.coordinator, name: "scrollSync")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -41,13 +48,18 @@ struct MarkdownPreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        context.coordinator.onSourceLineSelected = onSourceLineSelected
+        context.coordinator.onPreviewScroll = onPreviewScroll
         context.coordinator.scheduleRender(markdown)
+        context.coordinator.scheduleScrollSync(editorScrollPosition)
     }
 
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
         coordinator.cancelPendingRender()
         coordinator.cancelD2Rendering()
+        coordinator.cancelScrollSync()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "d2")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollSync")
         webView.navigationDelegate = nil
     }
 
@@ -77,10 +89,23 @@ struct MarkdownPreviewView: NSViewRepresentable {
         private weak var webView: WKWebView?
         private var renderTask: Task<Void, Never>?
         private var d2RenderTask: Task<Void, Never>?
+        private var scrollTask: Task<Void, Never>?
         private var pendingMarkdown = ""
+        private var pendingScrollPosition = ScrollSyncPosition.initial
+        private var appliedScrollGeneration: UInt64 = 0
         private var revision: UInt64 = 0
         private var runtimeAvailable = false
         private var runtimeReady = false
+        var onPreviewScroll: (Double, Double, Bool) -> Void
+        var onSourceLineSelected: (Int) -> Void
+
+        init(
+            onPreviewScroll: @escaping (Double, Double, Bool) -> Void,
+            onSourceLineSelected: @escaping (Int) -> Void
+        ) {
+            self.onPreviewScroll = onPreviewScroll
+            self.onSourceLineSelected = onSourceLineSelected
+        }
 
         func attach(to webView: WKWebView, initialMarkdown: String) {
             self.webView = webView
@@ -108,6 +133,10 @@ struct MarkdownPreviewView: NSViewRepresentable {
         }
 
         func scheduleRender(_ markdown: String) {
+            guard markdown != pendingMarkdown else {
+                return
+            }
+
             pendingMarkdown = markdown
             guard runtimeReady else {
                 return
@@ -137,6 +166,25 @@ struct MarkdownPreviewView: NSViewRepresentable {
         func cancelD2Rendering() {
             d2RenderTask?.cancel()
             d2RenderTask = nil
+        }
+
+        func scheduleScrollSync(_ position: ScrollSyncPosition) {
+            pendingScrollPosition = position
+            guard runtimeReady,
+                  position.generation != 0,
+                  position.generation != appliedScrollGeneration else {
+                return
+            }
+
+            scrollTask?.cancel()
+            scrollTask = Task { [weak self] in
+                await self?.applyPendingScrollPosition()
+            }
+        }
+
+        func cancelScrollSync() {
+            scrollTask?.cancel()
+            scrollTask = nil
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
@@ -174,6 +222,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             runtimeReady = false
             cancelD2Rendering()
+            cancelScrollSync()
             Self.logger.error("Markdown preview web content process terminated; reloading runtime")
             webView.reload()
         }
@@ -182,8 +231,22 @@ struct MarkdownPreviewView: NSViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
-            guard message.name == "d2",
-                  message.frameInfo.isMainFrame,
+            guard message.frameInfo.isMainFrame else {
+                return
+            }
+
+            switch message.name {
+            case "d2":
+                handleD2Message(message)
+            case "scrollSync":
+                handleScrollSyncMessage(message)
+            default:
+                break
+            }
+        }
+
+        private func handleD2Message(_ message: WKScriptMessage) {
+            guard
                   let payload = message.body as? [String: Any],
                   let revisionNumber = payload["revision"] as? NSNumber,
                   let rawBlocks = payload["blocks"] as? [[String: Any]] else {
@@ -214,6 +277,42 @@ struct MarkdownPreviewView: NSViewRepresentable {
             }
 
             renderD2Blocks(blocks, revision: requestedRevision)
+        }
+
+        private func handleScrollSyncMessage(_ message: WKScriptMessage) {
+            guard let payload = message.body as? [String: Any],
+                  let kind = payload["kind"] as? String,
+                  let lineNumber = payload["sourceLine"] as? NSNumber else {
+                return
+            }
+
+            let sourceLine = lineNumber.doubleValue
+            guard sourceLine.isFinite,
+                  sourceLine >= 1,
+                  sourceLine <= 10_000_000 else {
+                return
+            }
+
+            switch kind {
+            case "selection":
+                onSourceLineSelected(Int(sourceLine.rounded()))
+            case "previewScroll":
+                guard let progressNumber = payload["progress"] as? NSNumber else {
+                    return
+                }
+                let progress = progressNumber.doubleValue
+                guard progress.isFinite else {
+                    return
+                }
+                let usesProgressFallback = payload["usesProgressFallback"] as? Bool ?? false
+                onPreviewScroll(
+                    sourceLine,
+                    min(max(progress, 0), 1),
+                    usesProgressFallback
+                )
+            default:
+                return
+            }
         }
 
         func webView(
@@ -263,6 +362,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
                         in: nil,
                         contentWorld: .page
                     )
+                    await self.applyPendingScrollPosition(force: true)
                 } catch {
                     self.logJavaScriptError("Markdown preview update failed", error: error)
                 }
@@ -273,6 +373,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
             runtimeAvailable = false
             runtimeReady = false
             cancelD2Rendering()
+            cancelScrollSync()
 
             let fallback = """
             <!doctype html>
@@ -290,6 +391,31 @@ struct MarkdownPreviewView: NSViewRepresentable {
             Self.logger.error(
                 "\(message, privacy: .public) [\(nsError.domain, privacy: .public) \(nsError.code)]: \(String(describing: error), privacy: .public)"
             )
+        }
+
+        private func applyPendingScrollPosition(force: Bool = false) async {
+            let position = pendingScrollPosition
+            guard runtimeReady,
+                  position.generation != 0,
+                  force || position.generation != appliedScrollGeneration,
+                  let webView else {
+                return
+            }
+
+            do {
+                _ = try await webView.callAsyncJavaScript(
+                    "return window.previewRuntime.scrollToSourceLine(sourceLine, progress);",
+                    arguments: [
+                        "sourceLine": position.sourceLine,
+                        "progress": position.progress,
+                    ],
+                    in: nil,
+                    contentWorld: .page
+                )
+                appliedScrollGeneration = position.generation
+            } catch {
+                logJavaScriptError("Preview scroll synchronization failed", error: error)
+            }
         }
 
         private func renderD2Blocks(_ blocks: [D2BlockRequest], revision: UInt64) {

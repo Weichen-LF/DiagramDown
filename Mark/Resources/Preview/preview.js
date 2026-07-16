@@ -18,6 +18,9 @@ const maximumD2SVGCacheBytes = 32 * 1024 * 1024;
 let d2SVGCacheBytes = 0;
 let latestD2BlockIDs = [];
 let lastSuccessfulD2BlockIDs = [];
+let previewScrollAnimationFrame = 0;
+let previewScrollMessageFrame = 0;
+let suppressPreviewScrollMessages = false;
 
 function configureMermaid() {
   mermaid.initialize({
@@ -31,6 +34,14 @@ function configureMermaid() {
 }
 
 configureMermaid();
+
+markdown.core.ruler.push("source_line_anchors", (state) => {
+  for (const token of state.tokens) {
+    if (token.block && Array.isArray(token.map)) {
+      token.attrSet("data-source-line", String(token.map[0] + 1));
+    }
+  }
+});
 
 function sourceFingerprint(language, source) {
   const value = `${language}\0${source}`;
@@ -59,6 +70,7 @@ function stableBlockID(environment, language, source) {
 markdown.renderer.rules.fence = (tokens, index, options, env, self) => {
   const token = tokens[index];
   const language = token.info.trim().split(/\s+/u, 1)[0].toLowerCase();
+  const sourceLine = Array.isArray(token.map) ? token.map[0] + 1 : 1;
 
   if (language === "mermaid") {
     const blockID = stableBlockID(env, "mermaid", token.content);
@@ -67,7 +79,7 @@ markdown.renderer.rules.fence = (tokens, index, options, env, self) => {
       source: token.content,
     });
 
-    return `<div id="${blockID}-container" class="diagram mermaid-diagram" data-block-id="${blockID}" aria-label="Mermaid diagram"><div class="diagram-pending">Rendering Mermaid…</div></div>`;
+    return `<div id="${blockID}-container" class="diagram mermaid-diagram" data-block-id="${blockID}" data-source-line="${sourceLine}" aria-label="Mermaid diagram"><div class="diagram-pending">Rendering Mermaid…</div></div>`;
   }
 
   if (language === "d2") {
@@ -77,7 +89,7 @@ markdown.renderer.rules.fence = (tokens, index, options, env, self) => {
       source: token.content,
     });
 
-    return `<div id="${blockID}-container" class="diagram d2-diagram" data-block-id="${blockID}" aria-label="D2 diagram"><div class="diagram-pending">Rendering D2…</div></div>`;
+    return `<div id="${blockID}-container" class="diagram d2-diagram" data-block-id="${blockID}" data-source-line="${sourceLine}" aria-label="D2 diagram"><div class="diagram-pending">Rendering D2…</div></div>`;
   }
 
   return defaultFenceRenderer(tokens, index, options, env, self);
@@ -362,12 +374,160 @@ function applyD2Error(blockID, revision, message) {
 }
 
 function restoreScrollRatio(scroller, ratio) {
+  suppressPreviewScrollMessages = true;
   requestAnimationFrame(() => {
     const nextMaximum = Math.max(
       scroller.scrollHeight - scroller.clientHeight,
       0,
     );
     scroller.scrollTop = ratio * nextMaximum;
+    requestAnimationFrame(() => {
+      if (previewScrollAnimationFrame === 0) {
+        suppressPreviewScrollMessages = false;
+      }
+    });
+  });
+}
+
+function sourceAnchors() {
+  const scroller = document.scrollingElement;
+  return [...preview.querySelectorAll("[data-source-line]")]
+    .map((element) => ({
+      element,
+      sourceLine: Number.parseInt(element.dataset.sourceLine, 10),
+      top: element.getBoundingClientRect().top + scroller.scrollTop,
+    }))
+    .filter((anchor) => Number.isFinite(anchor.sourceLine));
+}
+
+function cancelPreviewScrollAnimation() {
+  if (previewScrollAnimationFrame !== 0) {
+    cancelAnimationFrame(previewScrollAnimationFrame);
+    previewScrollAnimationFrame = 0;
+  }
+  suppressPreviewScrollMessages = false;
+}
+
+function animatePreviewScroll(targetTop) {
+  if (previewScrollAnimationFrame !== 0) {
+    cancelAnimationFrame(previewScrollAnimationFrame);
+  }
+
+  suppressPreviewScrollMessages = true;
+  const step = () => {
+    const scroller = document.scrollingElement;
+    const distance = targetTop - scroller.scrollTop;
+    if (Math.abs(distance) < 0.75) {
+      scroller.scrollTop = targetTop;
+      previewScrollAnimationFrame = 0;
+      requestAnimationFrame(() => {
+        if (previewScrollAnimationFrame === 0) {
+          suppressPreviewScrollMessages = false;
+        }
+      });
+      return;
+    }
+
+    scroller.scrollTop += distance * 0.34;
+    previewScrollAnimationFrame = requestAnimationFrame(step);
+  };
+
+  previewScrollAnimationFrame = requestAnimationFrame(step);
+}
+
+function scrollToSourceLine(sourceLine, progress) {
+  const scroller = document.scrollingElement;
+  const maximumScroll = Math.max(
+    scroller.scrollHeight - scroller.clientHeight,
+    0,
+  );
+  const fallbackTop = Math.min(Math.max(progress, 0), 1) * maximumScroll;
+  const anchors = sourceAnchors();
+
+  let targetTop = fallbackTop;
+  if (anchors.length > 0) {
+    let before = anchors[0];
+    let after = anchors[anchors.length - 1];
+
+    for (const anchor of anchors) {
+      if (anchor.sourceLine <= sourceLine) {
+        before = anchor;
+      }
+      if (anchor.sourceLine >= sourceLine) {
+        after = anchor;
+        break;
+      }
+    }
+
+    const beforeTop = before.top;
+    const afterTop = after.top;
+    if (after.sourceLine > before.sourceLine) {
+      const lineFraction = (sourceLine - before.sourceLine)
+        / (after.sourceLine - before.sourceLine);
+      targetTop = beforeTop + (afterTop - beforeTop) * lineFraction;
+    } else if (sourceLine < anchors[0].sourceLine
+               || sourceLine > anchors[anchors.length - 1].sourceLine) {
+      targetTop = fallbackTop;
+    } else {
+      targetTop = beforeTop;
+    }
+  }
+
+  animatePreviewScroll(Math.min(Math.max(targetTop, 0), maximumScroll));
+  return anchors.length > 0;
+}
+
+function previewScrollPosition() {
+  const scroller = document.scrollingElement;
+  const maximumScroll = Math.max(
+    scroller.scrollHeight - scroller.clientHeight,
+    0,
+  );
+  const progress = maximumScroll > 0 ? scroller.scrollTop / maximumScroll : 0;
+  const anchors = sourceAnchors();
+  if (anchors.length === 0) {
+    return { progress, sourceLine: 1, usesProgressFallback: true };
+  }
+
+  const viewportTop = scroller.scrollTop;
+  if (viewportTop <= anchors[0].top) {
+    return {
+      progress,
+      sourceLine: anchors[0].sourceLine,
+      usesProgressFallback: false,
+    };
+  }
+
+  for (let index = 1; index < anchors.length; index += 1) {
+    const before = anchors[index - 1];
+    const after = anchors[index];
+    if (viewportTop <= after.top && after.top > before.top) {
+      const positionFraction = (viewportTop - before.top) / (after.top - before.top);
+      return {
+        progress,
+        sourceLine: before.sourceLine
+          + (after.sourceLine - before.sourceLine) * positionFraction,
+        usesProgressFallback: false,
+      };
+    }
+  }
+
+  return {
+    progress,
+    sourceLine: anchors[anchors.length - 1].sourceLine,
+    usesProgressFallback: true,
+  };
+}
+
+function postPreviewScrollPosition() {
+  const handler = window.webkit?.messageHandlers?.scrollSync;
+  if (!handler) {
+    return;
+  }
+
+  handler.postMessage({
+    kind: "previewScroll",
+    ...previewScrollPosition(),
   });
 }
 
@@ -420,8 +580,41 @@ colorScheme.addEventListener("change", () => {
   void renderMarkdown(latestSource, latestRevision);
 });
 
+preview.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element) || event.target.closest("a")) {
+    return;
+  }
+
+  const anchor = event.target.closest("[data-source-line]");
+  const sourceLine = Number.parseInt(anchor?.dataset.sourceLine || "", 10);
+  if (!Number.isFinite(sourceLine)) {
+    return;
+  }
+
+  window.webkit?.messageHandlers?.scrollSync?.postMessage({
+    kind: "selection",
+    sourceLine,
+  });
+});
+
+window.addEventListener("wheel", cancelPreviewScrollAnimation, { passive: true });
+window.addEventListener("pointerdown", cancelPreviewScrollAnimation, { passive: true });
+window.addEventListener("scroll", () => {
+  if (suppressPreviewScrollMessages || previewScrollMessageFrame !== 0) {
+    return;
+  }
+
+  previewScrollMessageFrame = requestAnimationFrame(() => {
+    previewScrollMessageFrame = 0;
+    if (!suppressPreviewScrollMessages) {
+      postPreviewScrollPosition();
+    }
+  });
+}, { passive: true });
+
 window.previewRuntime = Object.freeze({
   applyD2Error,
   applyD2Result,
   renderMarkdown,
+  scrollToSourceLine,
 });
