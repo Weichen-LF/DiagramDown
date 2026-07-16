@@ -1,16 +1,15 @@
 //
-//  LineNumberRulerView.swift
+//  LineNumberTextView.swift
 //  DiagramDown
 //
 
 import AppKit
 
-final class LineNumberRulerView: NSView {
-    private weak var scrollView: NSScrollView?
-    private weak var textView: NSTextView?
+final class LineNumberTextView: NSTextView {
     private var lineStartOffsets: [Int]?
-    private(set) var preferredWidth: CGFloat = 44
-    var preferredWidthDidChange: ((CGFloat) -> Void)?
+    private var gutterWidth: CGFloat = 44
+    private let horizontalContentInset: CGFloat = 18
+    private let verticalContentInset: CGFloat = 16
     private let numberFont = NSFont.monospacedDigitSystemFont(
         ofSize: 11,
         weight: .regular
@@ -21,53 +20,75 @@ final class LineNumberRulerView: NSView {
         return style
     }()
 
-    override var isFlipped: Bool {
-        true
+    convenience init() {
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer()
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(textContainer)
+        self.init(frame: .zero, textContainer: textContainer)
     }
 
-    init(scrollView: NSScrollView, textView: NSTextView) {
-        self.scrollView = scrollView
-        self.textView = textView
-        super.init(frame: .zero)
-        updatePreferredWidth()
+    override init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
+        super.init(frame: frameRect, textContainer: container)
+        updateGutterWidth()
     }
 
-    required init(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        updateGutterWidth()
     }
 
     func invalidateLineStarts() {
         lineStartOffsets = nil
-        updatePreferredWidth()
+        updateGutterWidth()
+        invalidateLineNumberDisplay()
+    }
+
+    func invalidateLineNumberDisplay() {
         needsDisplay = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSGraphicsContext.saveGraphicsState()
-        defer { NSGraphicsContext.restoreGraphicsState() }
+        super.draw(dirtyRect)
 
+        guard let graphicsContext = NSGraphicsContext.current else {
+            return
+        }
+        graphicsContext.saveGraphicsState()
+        defer { graphicsContext.restoreGraphicsState() }
+
+        graphicsContext.cgContext.resetClip()
+        graphicsContext.cgContext.clip(to: bounds)
+        drawLineNumbers(in: visibleRect)
+    }
+
+    private func drawLineNumbers(in visibleRect: NSRect) {
+        let gutterRect = NSRect(
+            x: 0,
+            y: visibleRect.minY,
+            width: gutterWidth,
+            height: visibleRect.height
+        )
         NSColor.textBackgroundColor.setFill()
-        dirtyRect.fill()
+        gutterRect.fill()
 
-        guard let textView,
-              let layoutManager = textView.layoutManager,
-              let textContainer = textView.textContainer else {
-            drawSeparator(in: dirtyRect)
+        guard let layoutManager,
+              let textContainer else {
+            drawSeparator(in: visibleRect)
             return
         }
 
         layoutManager.ensureLayout(for: textContainer)
-        let source = textView.string as NSString
+        let source = string as NSString
         let offsets = resolvedLineStartOffsets(for: source)
         let selectedLine = lineNumber(
-            forCharacterIndex: min(textView.selectedRange().location, source.length),
+            forCharacterIndex: min(selectedRange().location, source.length),
             offsets: offsets
         )
-        let visibleRect = scrollView?.contentView.documentVisibleRect ?? textView.visibleRect
-        let containerOrigin = textView.textContainerOrigin
         let containerVisibleRect = visibleRect.offsetBy(
-            dx: -containerOrigin.x,
-            dy: -containerOrigin.y
+            dx: -textContainerOrigin.x,
+            dy: -textContainerOrigin.y
         )
         let visibleGlyphRange = layoutManager.glyphRange(
             forBoundingRect: containerVisibleRect,
@@ -98,8 +119,7 @@ final class LineNumberRulerView: NSView {
                     number,
                     lineRect: lineRect,
                     selected: number == selectedLine,
-                    textView: textView,
-                    dirtyRect: dirtyRect
+                    visibleRect: visibleRect
                 )
             }
         }
@@ -107,73 +127,69 @@ final class LineNumberRulerView: NSView {
         if source.length == 0 || source.character(at: source.length - 1) == 10 {
             var extraLineRect = layoutManager.extraLineFragmentRect
             if extraLineRect.height <= 0 {
-                extraLineRect.size.height = textView.font?.lineHeight ?? numberFont.lineHeight
+                extraLineRect.size.height = font?.lineHeight ?? numberFont.lineHeight
             }
             drawLineNumber(
                 offsets.count,
                 lineRect: extraLineRect,
                 selected: offsets.count == selectedLine,
-                textView: textView,
-                dirtyRect: dirtyRect
+                visibleRect: visibleRect
             )
         }
 
-        drawSeparator(in: dirtyRect)
+        drawSeparator(in: visibleRect)
     }
 
     private func drawLineNumber(
         _ number: Int,
         lineRect: NSRect,
         selected: Bool,
-        textView: NSTextView,
-        dirtyRect: NSRect
+        visibleRect: NSRect
     ) {
-        let textPoint = NSPoint(
-            x: 0,
-            y: textView.textContainerOrigin.y + lineRect.minY
-        )
-        let rulerPoint = convert(textPoint, from: textView)
         let labelRect = NSRect(
             x: 4,
-            y: rulerPoint.y + max((lineRect.height - numberFont.lineHeight) / 2, 0),
-            width: max(preferredWidth - 12, 0),
+            y: textContainerOrigin.y
+                + lineRect.minY
+                + max((lineRect.height - numberFont.lineHeight) / 2, 0),
+            width: max(gutterWidth - 12, 0),
             height: numberFont.lineHeight
         )
-        guard labelRect.intersects(dirtyRect) else {
+        guard labelRect.intersects(visibleRect) else {
             return
         }
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: numberFont,
-            .foregroundColor: selected ? NSColor.secondaryLabelColor : NSColor.tertiaryLabelColor,
+            .foregroundColor: selected
+                ? NSColor.secondaryLabelColor
+                : NSColor.tertiaryLabelColor,
             .paragraphStyle: paragraphStyle,
         ]
         String(number).draw(in: labelRect, withAttributes: attributes)
     }
 
-    private func drawSeparator(in rect: NSRect) {
+    private func drawSeparator(in visibleRect: NSRect) {
         NSColor.separatorColor.setFill()
         NSRect(
-            x: max(bounds.maxX - 1, 0),
-            y: rect.minY,
+            x: max(gutterWidth - 1, 0),
+            y: visibleRect.minY,
             width: 1,
-            height: rect.height
+            height: visibleRect.height
         ).fill()
     }
 
-    private func updatePreferredWidth() {
-        let source = (textView?.string ?? "") as NSString
+    private func updateGutterWidth() {
+        let source = string as NSString
         let lineCount = resolvedLineStartOffsets(for: source).count
         let attributes: [NSAttributedString.Key: Any] = [.font: numberFont]
         let numberWidth = ceil(
             (String(max(lineCount, 1)) as NSString).size(withAttributes: attributes).width
         )
-        let newWidth = max(numberWidth + 20, 44)
-        guard newWidth != preferredWidth else {
-            return
-        }
-        preferredWidth = newWidth
-        preferredWidthDidChange?(newWidth)
+        gutterWidth = max(numberWidth + 20, 44)
+        textContainerInset = NSSize(
+            width: gutterWidth + horizontalContentInset,
+            height: verticalContentInset
+        )
     }
 
     private func resolvedLineStartOffsets(for source: NSString) -> [Int] {

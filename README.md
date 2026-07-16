@@ -54,7 +54,7 @@ xcodebuild \
 
 - `Mark/MarkdownDocument.swift`: Markdown file lifecycle
 - `Mark/MarkdownEditorView.swift`: native AppKit editor embedded in SwiftUI
-- `Mark/LineNumberRulerView.swift`: visible logical-line numbering for the native editor
+- `Mark/LineNumberTextView.swift`: native editor text drawing with visible logical-line numbering
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
 - `Mark/ScrollSyncState.swift`: editor-preview scroll position and source target state

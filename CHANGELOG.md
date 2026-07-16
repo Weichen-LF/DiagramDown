@@ -15,7 +15,7 @@ The project follows [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Restored Markdown source text rendering when the line-number gutter is visible
-- Moved line numbers outside `NSScrollView` ruler management so the editor keeps its normal clipping coordinates
+- Draw line numbers and source text in the same `NSTextView` layer to avoid ruler and WebKit compositing conflicts
 
 ## [0.6.2] - 2026-07-16
 
