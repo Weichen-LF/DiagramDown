@@ -11,6 +11,14 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Editor-preview scroll synchronization
 - D2 preview settings
 
+## [0.5.1] - 2026-07-16
+
+### Fixed
+
+- Prevented D2 diagrams from flashing through their pending state on ordinary Markdown edits
+- Kept the previous successful D2 SVG visible while changed diagram source is rendered
+- Avoided native D2 render requests for unchanged blocks already cached in the preview runtime
+
 ## [0.5.0] - 2026-07-16
 
 ### Added

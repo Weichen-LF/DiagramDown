@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.5.0` adds the first diagram cache and stable preview identities:
+Version `0.5.1` adds the first diagram cache and stable preview identities:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -23,6 +23,7 @@ Version `0.5.0` adds the first diagram cache and stable preview identities:
 - Sandboxed D2 execution with cancellation, timeouts, size limits, and inline errors
 - 32 MB in-memory LRU cache for repeated D2 renders
 - Stable Mermaid and D2 block identities across preview revisions
+- Flicker-free D2 updates that reuse unchanged SVGs and retain the previous diagram while edited source renders
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 

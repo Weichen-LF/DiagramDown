@@ -13,6 +13,11 @@ let latestRevision = 0;
 let latestSource = "";
 let mermaidQueue = Promise.resolve();
 const d2Sources = new Map();
+const d2SVGCache = new Map();
+const maximumD2SVGCacheBytes = 32 * 1024 * 1024;
+let d2SVGCacheBytes = 0;
+let latestD2BlockIDs = [];
+let lastSuccessfulD2BlockIDs = [];
 
 function configureMermaid() {
   mermaid.initialize({
@@ -138,11 +143,6 @@ async function renderMermaidBlocks(blocks, revision) {
 }
 
 function requestD2Blocks(blocks, revision) {
-  d2Sources.clear();
-  for (const block of blocks) {
-    d2Sources.set(block.id, block.source);
-  }
-
   if (blocks.length === 0) {
     return;
   }
@@ -162,6 +162,47 @@ function requestD2Blocks(blocks, revision) {
     blocks,
     revision,
   });
+}
+
+function cachedD2SVG(blockID) {
+  const entry = d2SVGCache.get(blockID);
+  if (!entry) {
+    return null;
+  }
+
+  d2SVGCache.delete(blockID);
+  d2SVGCache.set(blockID, entry);
+  return entry.svg;
+}
+
+function removeD2SVG(blockID) {
+  const removed = d2SVGCache.get(blockID);
+  if (!removed) {
+    return;
+  }
+
+  d2SVGCache.delete(blockID);
+  d2SVGCacheBytes -= removed.cost;
+}
+
+function storeD2SVG(blockID, svg) {
+  const cost = new TextEncoder().encode(svg).byteLength;
+  if (cost > maximumD2SVGCacheBytes) {
+    return;
+  }
+
+  const previous = d2SVGCache.get(blockID);
+  if (previous) {
+    removeD2SVG(blockID);
+  }
+
+  d2SVGCache.set(blockID, { cost, svg });
+  d2SVGCacheBytes += cost;
+
+  while (d2SVGCacheBytes > maximumD2SVGCacheBytes) {
+    const oldestBlockID = d2SVGCache.keys().next().value;
+    removeD2SVG(oldestBlockID);
+  }
 }
 
 function sanitizedSVG(source) {
@@ -240,6 +281,49 @@ function showD2Error(container, source, message) {
   container.replaceChildren(errorView);
 }
 
+function showD2SVG(container, svg) {
+  container.replaceChildren(sanitizedSVG(svg));
+}
+
+function restoreD2Blocks(blocks, revision) {
+  const pendingBlocks = [];
+  d2Sources.clear();
+
+  for (const [index, block] of blocks.entries()) {
+    d2Sources.set(block.id, block.source);
+
+    const container = document.getElementById(`${block.id}-container`);
+    const exactSVG = cachedD2SVG(block.id);
+    if (container && exactSVG) {
+      try {
+        showD2SVG(container, exactSVG);
+        continue;
+      } catch {
+        removeD2SVG(block.id);
+      }
+    }
+
+    const previousBlockID = lastSuccessfulD2BlockIDs[index];
+    const previousSVG = previousBlockID
+      ? cachedD2SVG(previousBlockID)
+      : null;
+    if (container && previousSVG) {
+      try {
+        showD2SVG(container, previousSVG);
+      } catch {
+        removeD2SVG(previousBlockID);
+        // Leave the pending view visible if the previous SVG cannot be restored.
+      }
+    }
+
+    pendingBlocks.push(block);
+  }
+
+  latestD2BlockIDs = blocks.map((block) => block.id);
+  lastSuccessfulD2BlockIDs.length = blocks.length;
+  requestD2Blocks(pendingBlocks, revision);
+}
+
 function applyD2Result(blockID, revision, svg) {
   if (revision !== latestRevision) {
     return false;
@@ -251,7 +335,12 @@ function applyD2Result(blockID, revision, svg) {
   }
 
   try {
-    container.replaceChildren(sanitizedSVG(svg));
+    showD2SVG(container, svg);
+    storeD2SVG(blockID, svg);
+    const blockIndex = latestD2BlockIDs.indexOf(blockID);
+    if (blockIndex >= 0) {
+      lastSuccessfulD2BlockIDs[blockIndex] = blockID;
+    }
   } catch (error) {
     showD2Error(container, d2Sources.get(blockID) || "", errorMessage(error));
   }
@@ -312,7 +401,7 @@ async function renderMarkdown(source, revision) {
   }
 
   preview.dataset.revision = String(revision);
-  requestD2Blocks(environment.d2Blocks, revision);
+  restoreD2Blocks(environment.d2Blocks, revision);
 
   mermaidQueue = mermaidQueue
     .catch(() => undefined)
