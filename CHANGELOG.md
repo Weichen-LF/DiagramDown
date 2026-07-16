@@ -10,6 +10,13 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - D2 fenced-block rendering
 
+## [0.3.1] - 2026-07-16
+
+### Fixed
+
+- Replaced the local Mermaid ESM import with the official single-file browser runtime for reliable `WKWebView` file URL loading
+- Added an explicit JavaScript runtime readiness check and an in-preview failure message
+
 ## [0.3.0] - 2026-07-16
 
 ### Added

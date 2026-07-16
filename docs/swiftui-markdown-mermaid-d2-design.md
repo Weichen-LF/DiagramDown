@@ -9,7 +9,7 @@
 - **文本编辑器**：AppKit `NSTextView`，通过 `NSViewRepresentable` 嵌入 SwiftUI
 - **Markdown 预览**：`WKWebView`
 - **Markdown HTML 渲染**：随应用打包的 `markdown-it` JavaScript
-- **Mermaid 渲染**：随应用打包的 Mermaid ESM，直接在 `WKWebView` 中生成 SVG
+- **Mermaid 渲染**：随应用打包的 Mermaid 单文件浏览器运行时，直接在 `WKWebView` 中生成 SVG
 - **D2 渲染**：随应用打包的 D2 原生 CLI，由 Swift `Process` 启动并生成 SVG
 - **文档模型**：SwiftUI `DocumentGroup` + `FileDocument`
 - **并发模型**：Swift Concurrency；D2 渲染服务使用 `actor`
@@ -230,7 +230,7 @@ Resources/Preview/
 ├── preview.css
 ├── preview.js
 ├── markdown-it.min.js
-├── mermaid.esm.min.mjs
+├── mermaid.min.js
 └── code-theme.css
 ```
 
@@ -714,7 +714,7 @@ MyMarkdown/
 │   │   ├── preview.css
 │   │   ├── preview.js
 │   │   ├── markdown-it.min.js
-│   │   └── mermaid.esm.min.mjs
+│   │   └── mermaid.min.js
 │   └── Licenses/
 │       ├── Mermaid-LICENSE.txt
 │       ├── D2-LICENSE.txt

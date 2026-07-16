@@ -1,7 +1,6 @@
-import mermaid from "./mermaid.esm.min.mjs";
-
 const preview = document.getElementById("preview");
 const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+const mermaid = window.mermaid;
 const markdown = window.markdownit({
   breaks: false,
   html: false,

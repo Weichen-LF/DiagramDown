@@ -135,8 +135,37 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 return
             }
 
-            runtimeReady = true
-            renderPendingMarkdown()
+            Task { [weak self, weak webView] in
+                guard let self, let webView else {
+                    return
+                }
+
+                do {
+                    let result = try await webView.callAsyncJavaScript(
+                        "return typeof window.previewRuntime?.renderMarkdown === 'function';",
+                        arguments: [:],
+                        in: nil,
+                        contentWorld: .page
+                    )
+
+                    guard result as? Bool == true else {
+                        showRuntimeFailurePage()
+                        return
+                    }
+
+                    runtimeReady = true
+                    renderPendingMarkdown()
+                } catch {
+                    logJavaScriptError("Markdown preview runtime check failed", error: error)
+                    showRuntimeFailurePage()
+                }
+            }
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            runtimeReady = false
+            Self.logger.error("Markdown preview web content process terminated; reloading runtime")
+            webView.reload()
         }
 
         func webView(
@@ -186,9 +215,31 @@ struct MarkdownPreviewView: NSViewRepresentable {
                         contentWorld: .page
                     )
                 } catch {
-                    Self.logger.error("Markdown preview update failed: \(error.localizedDescription, privacy: .public)")
+                    self.logJavaScriptError("Markdown preview update failed", error: error)
                 }
             }
+        }
+
+        private func showRuntimeFailurePage() {
+            runtimeAvailable = false
+            runtimeReady = false
+
+            let fallback = """
+            <!doctype html>
+            <html>
+            <body style="font: 14px -apple-system; padding: 24px; color: #b42318">
+              Markdown preview runtime failed to load. Rebuild the application and try again.
+            </body>
+            </html>
+            """
+            webView?.loadHTMLString(fallback, baseURL: nil)
+        }
+
+        private func logJavaScriptError(_ message: String, error: Error) {
+            let nsError = error as NSError
+            Self.logger.error(
+                "\(message, privacy: .public) [\(nsError.domain, privacy: .public) \(nsError.code)]: \(String(describing: error), privacy: .public)"
+            )
         }
     }
 }

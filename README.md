@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.3.0` adds the first diagram-rendering milestone:
+Version `0.3.1` includes the first diagram-rendering milestone:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
