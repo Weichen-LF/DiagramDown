@@ -5,9 +5,12 @@
 
 import AppKit
 
-final class LineNumberRulerView: NSRulerView {
+final class LineNumberRulerView: NSView {
+    private weak var scrollView: NSScrollView?
     private weak var textView: NSTextView?
     private var lineStartOffsets: [Int]?
+    private(set) var preferredWidth: CGFloat = 44
+    var preferredWidthDidChange: ((CGFloat) -> Void)?
     private let numberFont = NSFont.monospacedDigitSystemFont(
         ofSize: 11,
         weight: .regular
@@ -23,10 +26,10 @@ final class LineNumberRulerView: NSRulerView {
     }
 
     init(scrollView: NSScrollView, textView: NSTextView) {
+        self.scrollView = scrollView
         self.textView = textView
-        super.init(scrollView: scrollView, orientation: .verticalRuler)
-        clientView = textView
-        updateThickness()
+        super.init(frame: .zero)
+        updatePreferredWidth()
     }
 
     required init(coder: NSCoder) {
@@ -35,21 +38,21 @@ final class LineNumberRulerView: NSRulerView {
 
     func invalidateLineStarts() {
         lineStartOffsets = nil
-        updateThickness()
+        updatePreferredWidth()
         needsDisplay = true
     }
 
-    override func drawHashMarksAndLabels(in rect: NSRect) {
+    override func draw(_ dirtyRect: NSRect) {
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
 
         NSColor.textBackgroundColor.setFill()
-        rect.fill()
+        dirtyRect.fill()
 
         guard let textView,
               let layoutManager = textView.layoutManager,
               let textContainer = textView.textContainer else {
-            drawSeparator(in: rect)
+            drawSeparator(in: dirtyRect)
             return
         }
 
@@ -96,7 +99,7 @@ final class LineNumberRulerView: NSRulerView {
                     lineRect: lineRect,
                     selected: number == selectedLine,
                     textView: textView,
-                    dirtyRect: rect
+                    dirtyRect: dirtyRect
                 )
             }
         }
@@ -111,11 +114,11 @@ final class LineNumberRulerView: NSRulerView {
                 lineRect: extraLineRect,
                 selected: offsets.count == selectedLine,
                 textView: textView,
-                dirtyRect: rect
+                dirtyRect: dirtyRect
             )
         }
 
-        drawSeparator(in: rect)
+        drawSeparator(in: dirtyRect)
     }
 
     private func drawLineNumber(
@@ -133,7 +136,7 @@ final class LineNumberRulerView: NSRulerView {
         let labelRect = NSRect(
             x: 4,
             y: rulerPoint.y + max((lineRect.height - numberFont.lineHeight) / 2, 0),
-            width: max(ruleThickness - 12, 0),
+            width: max(preferredWidth - 12, 0),
             height: numberFont.lineHeight
         )
         guard labelRect.intersects(dirtyRect) else {
@@ -158,14 +161,19 @@ final class LineNumberRulerView: NSRulerView {
         ).fill()
     }
 
-    private func updateThickness() {
+    private func updatePreferredWidth() {
         let source = (textView?.string ?? "") as NSString
         let lineCount = resolvedLineStartOffsets(for: source).count
         let attributes: [NSAttributedString.Key: Any] = [.font: numberFont]
         let numberWidth = ceil(
             (String(max(lineCount, 1)) as NSString).size(withAttributes: attributes).width
         )
-        ruleThickness = max(numberWidth + 20, 44)
+        let newWidth = max(numberWidth + 20, 44)
+        guard newWidth != preferredWidth else {
+            return
+        }
+        preferredWidth = newWidth
+        preferredWidthDidChange?(newWidth)
     }
 
     private func resolvedLineStartOffsets(for source: NSString) -> [Int] {

@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.6.2` adds native source line numbers and keeps the bidirectional editor-preview synchronization introduced in 0.6.1:
+Version `0.6.3` fixes source text rendering while retaining the native line-number gutter introduced in 0.6.2:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods

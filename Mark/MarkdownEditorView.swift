@@ -6,6 +6,51 @@
 import AppKit
 import SwiftUI
 
+final class MarkdownEditorContainerView: NSView {
+    let scrollView = NSScrollView()
+    private(set) var lineNumberRuler: LineNumberRulerView?
+
+    override var isFlipped: Bool {
+        true
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        addSubview(scrollView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func install(lineNumberRuler: LineNumberRulerView) {
+        self.lineNumberRuler?.removeFromSuperview()
+        self.lineNumberRuler = lineNumberRuler
+        addSubview(lineNumberRuler)
+        lineNumberRuler.preferredWidthDidChange = { [weak self] _ in
+            self?.needsLayout = true
+        }
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let rulerWidth = min(lineNumberRuler?.preferredWidth ?? 0, bounds.width)
+        lineNumberRuler?.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: rulerWidth,
+            height: bounds.height
+        )
+        scrollView.frame = NSRect(
+            x: rulerWidth,
+            y: 0,
+            width: max(bounds.width - rulerWidth, 0),
+            height: bounds.height
+        )
+    }
+}
+
 struct MarkdownEditorView: NSViewRepresentable {
     @Binding var text: String
     @Binding var scrollPosition: ScrollSyncPosition
@@ -15,8 +60,9 @@ struct MarkdownEditorView: NSViewRepresentable {
         Coordinator(text: $text, scrollPosition: $scrollPosition)
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
+    func makeNSView(context: Context) -> MarkdownEditorContainerView {
+        let containerView = MarkdownEditorContainerView()
+        let scrollView = containerView.scrollView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
@@ -58,23 +104,22 @@ struct MarkdownEditorView: NSViewRepresentable {
             scrollView: scrollView,
             textView: textView
         )
-        scrollView.verticalRulerView = lineNumberRuler
-        scrollView.hasVerticalRuler = true
-        scrollView.rulersVisible = true
+        containerView.install(lineNumberRuler: lineNumberRuler)
         context.coordinator.attach(
             scrollView: scrollView,
             textView: textView,
             lineNumberRuler: lineNumberRuler
         )
-        return scrollView
+        return containerView
     }
 
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+    func updateNSView(_ containerView: MarkdownEditorContainerView, context: Context) {
         context.coordinator.updateBindings(
             text: $text,
             scrollPosition: $scrollPosition
         )
 
+        let scrollView = containerView.scrollView
         guard let textView = scrollView.documentView as? NSTextView else {
             return
         }
@@ -91,7 +136,10 @@ struct MarkdownEditorView: NSViewRepresentable {
         context.coordinator.apply(scrollTarget: scrollTarget)
     }
 
-    static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
+    static func dismantleNSView(
+        _ containerView: MarkdownEditorContainerView,
+        coordinator: Coordinator
+    ) {
         coordinator.invalidate()
     }
 

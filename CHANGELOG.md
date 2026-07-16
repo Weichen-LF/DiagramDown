@@ -10,6 +10,13 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - D2 preview settings
 
+## [0.6.3] - 2026-07-16
+
+### Fixed
+
+- Restored Markdown source text rendering when the line-number gutter is visible
+- Moved line numbers outside `NSScrollView` ruler management so the editor keeps its normal clipping coordinates
+
 ## [0.6.2] - 2026-07-16
 
 ### Added
