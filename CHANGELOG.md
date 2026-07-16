@@ -11,6 +11,19 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Stability and automated testing
 - Signing, notarization, and release preparation
 
+## [0.13.0] - 2026-07-16
+
+### Added
+
+- Per-window Editor Only, Editor and Preview, and Preview Only document layouts
+- A segmented toolbar control for switching layouts without changing the document
+- Focused Mermaid and D2 diagram viewing in an overlay
+- Independent 25%–400% diagram zoom, fit-to-window, actual size, and keyboard controls
+
+### Changed
+
+- Diagram hover actions now group focused preview and SVG export together
+
 ## [0.12.0] - 2026-07-16
 
 ### Added

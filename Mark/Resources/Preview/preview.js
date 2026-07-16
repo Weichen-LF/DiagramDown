@@ -27,6 +27,11 @@ let lastSuccessfulD2CacheKeys = [];
 let previewScrollAnimationFrame = 0;
 let previewScrollMessageFrame = 0;
 let suppressPreviewScrollMessages = false;
+let activeDiagramViewer = null;
+
+const diagramZoomMinimum = 0.25;
+const diagramZoomMaximum = 4;
+const diagramZoomStep = 0.25;
 
 function configureMermaid() {
   mermaid.initialize({
@@ -183,41 +188,275 @@ function showMermaidError(container, source, error) {
   container.replaceChildren(errorView);
 }
 
-function installDiagramExportButton(container, blockID, kind) {
+function diagramDisplayName(kind) {
+  return kind === "d2" ? "D2" : "Mermaid";
+}
+
+function postSVGExport(container, blockID, kind) {
+  const currentSVG = container.querySelector("svg");
+  const handler = window.webkit?.messageHandlers?.exportSVG;
+  if (!currentSVG || !handler) {
+    return;
+  }
+
+  const exportedSVG = currentSVG.cloneNode(true);
+  if (!exportedSVG.hasAttribute("xmlns")) {
+    exportedSVG.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  }
+
+  handler.postMessage({
+    blockID,
+    kind,
+    sourceLine: Number.parseInt(container.dataset.sourceLine || "1", 10),
+    svg: new XMLSerializer().serializeToString(exportedSVG),
+  });
+}
+
+function diagramIntrinsicSize(svg) {
+  const bounds = svg.getBoundingClientRect();
+  const viewBox = svg.viewBox?.baseVal;
+  const attributeWidth = Number.parseFloat(svg.getAttribute("width") || "");
+  const attributeHeight = Number.parseFloat(svg.getAttribute("height") || "");
+  const width = viewBox?.width > 0
+    ? viewBox.width
+    : (attributeWidth > 0 ? attributeWidth : bounds.width);
+  const height = viewBox?.height > 0
+    ? viewBox.height
+    : (attributeHeight > 0 ? attributeHeight : bounds.height);
+
+  return {
+    width: Math.min(Math.max(width || 1, 1), 20000),
+    height: Math.min(Math.max(height || 1, 1), 20000),
+  };
+}
+
+function closeDiagramViewer() {
+  activeDiagramViewer?.close();
+}
+
+function openDiagramViewer(container, kind, returnFocus) {
+  const sourceSVG = container.querySelector("svg");
+  if (!sourceSVG) {
+    return;
+  }
+
+  closeDiagramViewer();
+
+  const displayName = diagramDisplayName(kind);
+  const size = diagramIntrinsicSize(sourceSVG);
+  const overlay = document.createElement("div");
+  overlay.className = "diagram-viewer";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-label", `${displayName} diagram preview`);
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "diagram-viewer-toolbar";
+
+  const title = document.createElement("strong");
+  title.className = "diagram-viewer-title";
+  title.textContent = `${displayName} Diagram`;
+
+  const controls = document.createElement("div");
+  controls.className = "diagram-viewer-controls";
+
+  const makeButton = (label, titleText, action, className = "") => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `diagram-viewer-button ${className}`.trim();
+    button.textContent = label;
+    button.title = titleText;
+    button.setAttribute("aria-label", titleText);
+    button.addEventListener("click", action);
+    return button;
+  };
+
+  const viewport = document.createElement("div");
+  viewport.className = "diagram-viewer-viewport";
+
+  const canvas = document.createElement("div");
+  canvas.className = "diagram-viewer-canvas";
+
+  const viewerSVG = sourceSVG.cloneNode(true);
+  viewerSVG.style.maxWidth = "none";
+  viewerSVG.style.margin = "0";
+  viewerSVG.style.flex = "none";
+  viewerSVG.setAttribute("aria-label", `${displayName} diagram`);
+  canvas.appendChild(viewerSVG);
+  viewport.appendChild(canvas);
+
+  let zoom = 1;
+  let usingFitZoom = true;
+  let zoomOutButton = null;
+  let zoomInButton = null;
+
+  const zoomValue = document.createElement("button");
+  zoomValue.type = "button";
+  zoomValue.className = "diagram-viewer-zoom-value";
+  zoomValue.title = "Show diagram at actual size";
+  zoomValue.setAttribute("aria-label", "Show diagram at actual size");
+
+  const applyZoom = (nextZoom, fit = false) => {
+    const previousCanvasWidth = Number.parseFloat(canvas.style.width)
+      || viewport.clientWidth;
+    const previousCanvasHeight = Number.parseFloat(canvas.style.height)
+      || viewport.clientHeight;
+    const horizontalCenterRatio = previousCanvasWidth > 0
+      ? (viewport.scrollLeft + viewport.clientWidth / 2) / previousCanvasWidth
+      : 0.5;
+    const verticalCenterRatio = previousCanvasHeight > 0
+      ? (viewport.scrollTop + viewport.clientHeight / 2) / previousCanvasHeight
+      : 0.5;
+
+    zoom = Math.min(Math.max(nextZoom, diagramZoomMinimum), diagramZoomMaximum);
+    usingFitZoom = fit;
+    const width = Math.max(size.width * zoom, 1);
+    const height = Math.max(size.height * zoom, 1);
+    const canvasWidth = Math.max(width + 64, viewport.clientWidth);
+    const canvasHeight = Math.max(height + 64, viewport.clientHeight);
+
+    viewerSVG.style.width = `${width}px`;
+    viewerSVG.style.height = `${height}px`;
+    canvas.style.width = `${canvasWidth}px`;
+    canvas.style.height = `${canvasHeight}px`;
+    zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+    if (zoomOutButton) {
+      zoomOutButton.disabled = zoom <= diagramZoomMinimum;
+    }
+    if (zoomInButton) {
+      zoomInButton.disabled = zoom >= diagramZoomMaximum;
+    }
+
+    requestAnimationFrame(() => {
+      viewport.scrollLeft = Math.max(
+        (fit ? 0.5 : horizontalCenterRatio) * canvasWidth - viewport.clientWidth / 2,
+        0,
+      );
+      viewport.scrollTop = Math.max(
+        (fit ? 0.5 : verticalCenterRatio) * canvasHeight - viewport.clientHeight / 2,
+        0,
+      );
+    });
+  };
+
+  const fitDiagram = () => {
+    const availableWidth = Math.max(viewport.clientWidth - 64, 1);
+    const availableHeight = Math.max(viewport.clientHeight - 64, 1);
+    applyZoom(
+      Math.min(availableWidth / size.width, availableHeight / size.height),
+      true,
+    );
+  };
+
+  const close = () => {
+    if (!overlay.isConnected) {
+      return;
+    }
+    window.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("resize", handleResize);
+    overlay.remove();
+    document.documentElement.classList.remove("diagram-viewer-open");
+    activeDiagramViewer = null;
+    returnFocus?.focus();
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+      return;
+    }
+
+    if (["+", "="].includes(event.key)) {
+      event.preventDefault();
+      applyZoom(zoom + diagramZoomStep);
+    } else if (event.key === "-") {
+      event.preventDefault();
+      applyZoom(zoom - diagramZoomStep);
+    } else if (event.key === "0") {
+      event.preventDefault();
+      applyZoom(1);
+    } else if (event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      fitDiagram();
+    }
+  };
+
+  const handleResize = () => {
+    if (usingFitZoom) {
+      fitDiagram();
+    } else {
+      applyZoom(zoom);
+    }
+  };
+
+  const fitButton = makeButton("Fit", "Fit diagram to window", fitDiagram);
+  zoomOutButton = makeButton("−", "Zoom out diagram", () => {
+    applyZoom(zoom - diagramZoomStep);
+  });
+  zoomValue.addEventListener("click", () => applyZoom(1));
+  zoomInButton = makeButton("+", "Zoom in diagram", () => {
+    applyZoom(zoom + diagramZoomStep);
+  });
+  const closeButton = makeButton("Close", "Close diagram preview", close, "close");
+
+  controls.append(fitButton, zoomOutButton, zoomValue, zoomInButton, closeButton);
+  toolbar.append(title, controls);
+  overlay.append(toolbar, viewport);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) {
+      close();
+    }
+  });
+
+  document.documentElement.classList.add("diagram-viewer-open");
+  document.body.appendChild(overlay);
+  window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("resize", handleResize);
+  activeDiagramViewer = { close };
+
+  requestAnimationFrame(() => {
+    fitDiagram();
+    closeButton.focus();
+  });
+}
+
+function installDiagramControls(container, blockID, kind) {
   const svg = container.querySelector("svg");
   if (!svg) {
     return;
   }
 
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "diagram-export-button";
-  button.textContent = "Export SVG";
-  button.title = `Export ${kind === "d2" ? "D2" : "Mermaid"} diagram as SVG`;
-  button.setAttribute("aria-label", button.title);
-  button.addEventListener("click", (event) => {
+  const displayName = diagramDisplayName(kind);
+  const actions = document.createElement("div");
+  actions.className = "diagram-actions";
+
+  const previewButton = document.createElement("button");
+  previewButton.type = "button";
+  previewButton.className = "diagram-action-button diagram-preview-button";
+  previewButton.textContent = "Open Preview";
+  previewButton.title = `Open ${displayName} diagram preview`;
+  previewButton.setAttribute("aria-label", previewButton.title);
+  previewButton.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-
-    const currentSVG = container.querySelector("svg");
-    const handler = window.webkit?.messageHandlers?.exportSVG;
-    if (!currentSVG || !handler) {
-      return;
-    }
-
-    const exportedSVG = currentSVG.cloneNode(true);
-    if (!exportedSVG.hasAttribute("xmlns")) {
-      exportedSVG.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    }
-
-    handler.postMessage({
-      blockID,
-      kind,
-      sourceLine: Number.parseInt(container.dataset.sourceLine || "1", 10),
-      svg: new XMLSerializer().serializeToString(exportedSVG),
-    });
+    openDiagramViewer(container, kind, previewButton);
   });
-  container.appendChild(button);
+
+  const exportButton = document.createElement("button");
+  exportButton.type = "button";
+  exportButton.className = "diagram-action-button diagram-export-button";
+  exportButton.textContent = "Export SVG";
+  exportButton.title = `Export ${displayName} diagram as SVG`;
+  exportButton.setAttribute("aria-label", exportButton.title);
+  exportButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    postSVGExport(container, blockID, kind);
+  });
+
+  actions.append(previewButton, exportButton);
+  container.appendChild(actions);
 }
 
 async function renderMermaidBlocks(blocks, revision) {
@@ -239,7 +478,7 @@ async function renderMermaidBlocks(blocks, revision) {
 
       container.innerHTML = result.svg;
       result.bindFunctions?.(container);
-      installDiagramExportButton(container, block.id, "mermaid");
+      installDiagramControls(container, block.id, "mermaid");
     } catch (error) {
       if (revision === latestRevision && container.isConnected) {
         showMermaidError(container, block.source, error);
@@ -397,7 +636,7 @@ function showD2Error(container, source, message) {
 function showD2SVG(container, svg, blockID = null) {
   container.replaceChildren(sanitizedSVG(svg));
   if (blockID) {
-    installDiagramExportButton(container, blockID, "d2");
+    installDiagramControls(container, blockID, "d2");
   }
 }
 
@@ -488,6 +727,7 @@ function waitForAnimationFrame() {
 }
 
 async function prepareForPDFExport() {
+  closeDiagramViewer();
   await mermaidQueue.catch(() => undefined);
 
   const deadline = Date.now() + 7000;
@@ -678,6 +918,7 @@ async function renderMarkdown(
   mermaidLightTheme = "default",
   mermaidDarkTheme = "dark",
 ) {
+  closeDiagramViewer();
   const scroller = document.scrollingElement;
   const previousMaximum = Math.max(
     scroller.scrollHeight - scroller.clientHeight,

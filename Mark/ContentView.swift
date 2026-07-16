@@ -7,6 +7,40 @@
 
 import SwiftUI
 
+enum DocumentViewMode: String, CaseIterable, Identifiable {
+    case editorOnly
+    case editorAndPreview
+    case previewOnly
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .editorOnly:
+            "Editor Only"
+        case .editorAndPreview:
+            "Editor and Preview"
+        case .previewOnly:
+            "Preview Only"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .editorOnly:
+            "chevron.left.forwardslash.chevron.right"
+        case .editorAndPreview:
+            "rectangle.split.2x1"
+        case .previewOnly:
+            "eye"
+        }
+    }
+
+    var showsPreview: Bool {
+        self != .editorOnly
+    }
+}
+
 struct ContentView: View {
     @Binding var document: MarkdownDocument
     let fileURL: URL?
@@ -29,40 +63,39 @@ struct ContentView: View {
     @AppStorage(PreviewPreferences.d2SketchKey) private var d2Sketch =
         D2RenderConfiguration.preview.sketch
     @AppStorage(PreviewPreferences.zoomKey) private var previewZoom = PreviewZoom.defaultValue
+    @SceneStorage("DocumentView.mode") private var storedViewMode =
+        DocumentViewMode.editorAndPreview.rawValue
     @StateObject private var previewController = PreviewController()
     @State private var editorScrollPosition = ScrollSyncPosition.initial
     @State private var editorScrollTarget = ScrollSyncTarget.initial
 
     var body: some View {
-        HSplitView {
-            MarkdownEditorView(
-                text: $document.text,
-                scrollPosition: $editorScrollPosition,
-                scrollTarget: editorScrollTarget
-            )
-                .frame(minWidth: 320, idealWidth: 560)
-
-            MarkdownPreviewView(
-                markdown: document.text,
-                configuration: previewConfiguration,
-                zoom: PreviewZoom.clamped(previewZoom),
-                documentBaseName: documentBaseName,
-                previewController: previewController,
-                editorScrollPosition: editorScrollPosition,
-                onPreviewScroll: synchronizeEditor,
-                onSourceLineSelected: selectSourceLine
-            )
-                .frame(minWidth: 320, idealWidth: 560)
-        }
+        documentBody
         .frame(minWidth: 720, minHeight: 420)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Picker("View Mode", selection: viewModeBinding) {
+                    ForEach(DocumentViewMode.allCases) { mode in
+                        Label(mode.title, systemImage: mode.systemImage)
+                            .labelStyle(.iconOnly)
+                            .help(mode.title)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
+
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     previewZoom = PreviewZoom.clamped(previewZoom - PreviewZoom.step)
                 } label: {
                     Label("Zoom Out", systemImage: "minus.magnifyingglass")
                 }
-                .disabled(PreviewZoom.clamped(previewZoom) <= PreviewZoom.minimum)
+                .disabled(
+                    !activeViewMode.showsPreview
+                        || PreviewZoom.clamped(previewZoom) <= PreviewZoom.minimum
+                )
 
                 Menu {
                     ForEach(PreviewZoom.menuValues, id: \.self) { value in
@@ -82,13 +115,17 @@ struct ContentView: View {
                         .frame(minWidth: 42)
                 }
                 .help("Preview Zoom")
+                .disabled(!activeViewMode.showsPreview)
 
                 Button {
                     previewZoom = PreviewZoom.clamped(previewZoom + PreviewZoom.step)
                 } label: {
                     Label("Zoom In", systemImage: "plus.magnifyingglass")
                 }
-                .disabled(PreviewZoom.clamped(previewZoom) >= PreviewZoom.maximum)
+                .disabled(
+                    !activeViewMode.showsPreview
+                        || PreviewZoom.clamped(previewZoom) >= PreviewZoom.maximum
+                )
 
                 Button {
                     previewController.exportPDF()
@@ -96,11 +133,63 @@ struct ContentView: View {
                     Label("Export Preview as PDF", systemImage: "doc.richtext")
                 }
                 .help("Export Preview as PDF…")
+                .disabled(!activeViewMode.showsPreview)
             }
         }
         .focusedSceneValue(
             \.previewExportPDFAction,
-            PreviewExportPDFAction(perform: previewController.exportPDF)
+            activeViewMode.showsPreview
+                ? PreviewExportPDFAction(perform: previewController.exportPDF)
+                : nil
+        )
+    }
+
+    @ViewBuilder
+    private var documentBody: some View {
+        switch activeViewMode {
+        case .editorOnly:
+            editorPane
+        case .editorAndPreview:
+            HSplitView {
+                editorPane
+                    .frame(minWidth: 320, idealWidth: 560)
+                previewPane
+                    .frame(minWidth: 320, idealWidth: 560)
+            }
+        case .previewOnly:
+            previewPane
+        }
+    }
+
+    private var editorPane: some View {
+        MarkdownEditorView(
+            text: $document.text,
+            scrollPosition: $editorScrollPosition,
+            scrollTarget: editorScrollTarget
+        )
+    }
+
+    private var previewPane: some View {
+        MarkdownPreviewView(
+            markdown: document.text,
+            configuration: previewConfiguration,
+            zoom: PreviewZoom.clamped(previewZoom),
+            documentBaseName: documentBaseName,
+            previewController: previewController,
+            editorScrollPosition: editorScrollPosition,
+            onPreviewScroll: synchronizeEditor,
+            onSourceLineSelected: selectSourceLine
+        )
+    }
+
+    private var activeViewMode: DocumentViewMode {
+        DocumentViewMode(rawValue: storedViewMode) ?? .editorAndPreview
+    }
+
+    private var viewModeBinding: Binding<DocumentViewMode> {
+        Binding(
+            get: { activeViewMode },
+            set: { storedViewMode = $0.rawValue }
         )
     }
 

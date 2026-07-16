@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.12.0` completes the first preview zoom and export milestones:
+Version `0.13.0` adds flexible document layouts and focused diagram viewing:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -36,6 +36,8 @@ Version `0.12.0` completes the first preview zoom and export milestones:
 - Persistent 50–200% preview zoom with toolbar, menu, keyboard, and Settings controls
 - Per-diagram SVG export for successfully rendered Mermaid and D2 blocks
 - Full-document Markdown preview export to paginated PDF
+- Per-window Editor Only, Editor and Preview, and Preview Only layouts
+- Focused Mermaid and D2 diagram viewer with fit, 25%–400% zoom, and keyboard controls
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
@@ -90,5 +92,6 @@ xcodebuild \
 10. Persistent preview zoom — complete
 11. Mermaid and D2 diagram SVG export — complete
 12. Full Markdown preview PDF export — complete
-13. Stability and automated testing — next
-14. Signing, notarization, and release preparation — planned
+13. Document view modes and focused diagram zoom — complete
+14. Stability and automated testing — next
+15. Signing, notarization, and release preparation — planned
