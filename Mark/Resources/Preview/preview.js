@@ -18,6 +18,7 @@ let activeMermaidLightTheme = "default";
 let activeMermaidDarkTheme = "dark";
 let mermaidQueue = Promise.resolve();
 const d2Sources = new Map();
+let pendingD2BlockIDs = new Set();
 const d2SVGCache = new Map();
 const maximumD2SVGCacheBytes = 32 * 1024 * 1024;
 let d2SVGCacheBytes = 0;
@@ -182,6 +183,43 @@ function showMermaidError(container, source, error) {
   container.replaceChildren(errorView);
 }
 
+function installDiagramExportButton(container, blockID, kind) {
+  const svg = container.querySelector("svg");
+  if (!svg) {
+    return;
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "diagram-export-button";
+  button.textContent = "Export SVG";
+  button.title = `Export ${kind === "d2" ? "D2" : "Mermaid"} diagram as SVG`;
+  button.setAttribute("aria-label", button.title);
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const currentSVG = container.querySelector("svg");
+    const handler = window.webkit?.messageHandlers?.exportSVG;
+    if (!currentSVG || !handler) {
+      return;
+    }
+
+    const exportedSVG = currentSVG.cloneNode(true);
+    if (!exportedSVG.hasAttribute("xmlns")) {
+      exportedSVG.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    }
+
+    handler.postMessage({
+      blockID,
+      kind,
+      sourceLine: Number.parseInt(container.dataset.sourceLine || "1", 10),
+      svg: new XMLSerializer().serializeToString(exportedSVG),
+    });
+  });
+  container.appendChild(button);
+}
+
 async function renderMermaidBlocks(blocks, revision) {
   for (const block of blocks) {
     if (revision !== latestRevision) {
@@ -201,6 +239,7 @@ async function renderMermaidBlocks(blocks, revision) {
 
       container.innerHTML = result.svg;
       result.bindFunctions?.(container);
+      installDiagramExportButton(container, block.id, "mermaid");
     } catch (error) {
       if (revision === latestRevision && container.isConnected) {
         showMermaidError(container, block.source, error);
@@ -223,6 +262,7 @@ function requestD2Blocks(blocks, revision) {
       if (container) {
         showD2Error(container, block.source, "The native D2 renderer is unavailable.");
       }
+      pendingD2BlockIDs.delete(block.id);
     }
     return;
   }
@@ -354,8 +394,11 @@ function showD2Error(container, source, message) {
   container.replaceChildren(errorView);
 }
 
-function showD2SVG(container, svg) {
+function showD2SVG(container, svg, blockID = null) {
   container.replaceChildren(sanitizedSVG(svg));
+  if (blockID) {
+    installDiagramExportButton(container, blockID, "d2");
+  }
 }
 
 function restoreD2Blocks(blocks, revision) {
@@ -370,7 +413,7 @@ function restoreD2Blocks(blocks, revision) {
     const exactSVG = cachedD2SVG(cacheKey);
     if (container && exactSVG) {
       try {
-        showD2SVG(container, exactSVG);
+        showD2SVG(container, exactSVG, block.id);
         lastSuccessfulD2CacheKeys[index] = cacheKey;
         continue;
       } catch {
@@ -396,6 +439,7 @@ function restoreD2Blocks(blocks, revision) {
 
   latestD2CacheKeys = blocks.map((block) => d2CacheKey(block.id));
   lastSuccessfulD2CacheKeys.length = blocks.length;
+  pendingD2BlockIDs = new Set(pendingBlocks.map((block) => block.id));
   requestD2Blocks(pendingBlocks, revision);
 }
 
@@ -410,7 +454,7 @@ function applyD2Result(blockID, revision, svg) {
   }
 
   try {
-    showD2SVG(container, svg);
+    showD2SVG(container, svg, blockID);
     const cacheKey = d2CacheKey(blockID);
     storeD2SVG(cacheKey, svg);
     const blockIndex = latestD2CacheKeys.indexOf(cacheKey);
@@ -420,6 +464,7 @@ function applyD2Result(blockID, revision, svg) {
   } catch (error) {
     showD2Error(container, d2Sources.get(blockID) || "", errorMessage(error));
   }
+  pendingD2BlockIDs.delete(blockID);
   return true;
 }
 
@@ -434,7 +479,36 @@ function applyD2Error(blockID, revision, message) {
   }
 
   showD2Error(container, d2Sources.get(blockID) || "", message);
+  pendingD2BlockIDs.delete(blockID);
   return true;
+}
+
+function waitForAnimationFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+async function prepareForPDFExport() {
+  await mermaidQueue.catch(() => undefined);
+
+  const deadline = Date.now() + 7000;
+  while (pendingD2BlockIDs.size > 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  await document.fonts?.ready;
+  await waitForAnimationFrame();
+  await waitForAnimationFrame();
+
+  const pendingCount = Math.max(
+    pendingD2BlockIDs.size,
+    preview.querySelectorAll(".diagram-pending").length,
+  );
+  return {
+    ready: pendingCount === 0,
+    message: pendingCount === 0
+      ? ""
+      : `${pendingCount} diagram${pendingCount === 1 ? " is" : "s are"} still rendering. Try exporting again.`,
+  };
 }
 
 function restoreScrollRatio(scroller, ratio) {
@@ -670,7 +744,7 @@ colorScheme.addEventListener("change", () => {
 });
 
 preview.addEventListener("click", (event) => {
-  if (!(event.target instanceof Element) || event.target.closest("a")) {
+  if (!(event.target instanceof Element) || event.target.closest("a, button")) {
     return;
   }
 
@@ -704,6 +778,7 @@ window.addEventListener("scroll", () => {
 window.previewRuntime = Object.freeze({
   applyD2Error,
   applyD2Result,
+  prepareForPDFExport,
   renderMarkdown,
   scrollToSourceLine,
 });

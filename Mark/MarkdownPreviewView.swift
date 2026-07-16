@@ -6,11 +6,15 @@
 import AppKit
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 struct MarkdownPreviewView: NSViewRepresentable {
     let markdown: String
     let configuration: PreviewConfiguration
+    let zoom: Int
+    let documentBaseName: String
+    let previewController: PreviewController
     let editorScrollPosition: ScrollSyncPosition
     let onPreviewScroll: (Double, Double, Bool) -> Void
     let onSourceLineSelected: (Int) -> Void
@@ -18,6 +22,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             configuration: configuration,
+            documentBaseName: documentBaseName,
             onPreviewScroll: onPreviewScroll,
             onSourceLineSelected: onSourceLineSelected
         )
@@ -28,11 +33,13 @@ struct MarkdownPreviewView: NSViewRepresentable {
         configuration.websiteDataStore = .nonPersistent()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.userContentController.add(context.coordinator, name: "d2")
+        configuration.userContentController.add(context.coordinator, name: "exportSVG")
         configuration.userContentController.add(context.coordinator, name: "scrollSync")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.underPageBackgroundColor = .clear
+        Self.applyZoom(zoom, to: webView)
         Self.applyAppearance(self.configuration.appearance, to: webView)
 
         #if DEBUG
@@ -42,7 +49,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
         context.coordinator.attach(
             to: webView,
             initialMarkdown: markdown,
-            configuration: self.configuration
+            configuration: self.configuration,
+            previewController: previewController
         )
 
         guard let previewURL = Self.previewPageURL else {
@@ -57,6 +65,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onSourceLineSelected = onSourceLineSelected
         context.coordinator.onPreviewScroll = onPreviewScroll
+        context.coordinator.documentBaseName = documentBaseName
+        Self.applyZoom(zoom, to: webView)
         Self.applyAppearance(configuration.appearance, to: webView)
         context.coordinator.scheduleRender(markdown, configuration: configuration)
         context.coordinator.scheduleScrollSync(editorScrollPosition)
@@ -66,7 +76,9 @@ struct MarkdownPreviewView: NSViewRepresentable {
         coordinator.cancelPendingRender()
         coordinator.cancelD2Rendering()
         coordinator.cancelScrollSync()
+        coordinator.detachPreviewController()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "d2")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "exportSVG")
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollSync")
         webView.navigationDelegate = nil
     }
@@ -102,6 +114,13 @@ struct MarkdownPreviewView: NSViewRepresentable {
         }
     }
 
+    private static func applyZoom(_ zoom: Int, to webView: WKWebView) {
+        let pageZoom = CGFloat(PreviewZoom.clamped(zoom)) / 100
+        if abs(webView.pageZoom - pageZoom) > 0.001 {
+            webView.pageZoom = pageZoom
+        }
+    }
+
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private static let logger = Logger(
             subsystem: Bundle.main.bundleIdentifier ?? "me.walt.diagramdown",
@@ -120,16 +139,22 @@ struct MarkdownPreviewView: NSViewRepresentable {
         private var revision: UInt64 = 0
         private var runtimeAvailable = false
         private var runtimeReady = false
+        private var savePanelPresented = false
+        private var pdfExportInProgress = false
+        private weak var previewController: PreviewController?
+        var documentBaseName: String
         var onPreviewScroll: (Double, Double, Bool) -> Void
         var onSourceLineSelected: (Int) -> Void
 
         init(
             configuration: PreviewConfiguration,
+            documentBaseName: String,
             onPreviewScroll: @escaping (Double, Double, Bool) -> Void,
             onSourceLineSelected: @escaping (Int) -> Void
         ) {
             pendingConfiguration = configuration
             appliedConfiguration = configuration
+            self.documentBaseName = documentBaseName
             self.onPreviewScroll = onPreviewScroll
             self.onSourceLineSelected = onSourceLineSelected
         }
@@ -137,11 +162,21 @@ struct MarkdownPreviewView: NSViewRepresentable {
         func attach(
             to webView: WKWebView,
             initialMarkdown: String,
-            configuration: PreviewConfiguration
+            configuration: PreviewConfiguration,
+            previewController: PreviewController
         ) {
             self.webView = webView
+            self.previewController = previewController
+            previewController.coordinator = self
             pendingMarkdown = initialMarkdown
             pendingConfiguration = configuration
+        }
+
+        func detachPreviewController() {
+            if previewController?.coordinator === self {
+                previewController?.coordinator = nil
+            }
+            previewController = nil
         }
 
         func loadRuntime(at previewURL: URL) {
@@ -275,10 +310,192 @@ struct MarkdownPreviewView: NSViewRepresentable {
             switch message.name {
             case "d2":
                 handleD2Message(message)
+            case "exportSVG":
+                handleExportSVGMessage(message)
             case "scrollSync":
                 handleScrollSyncMessage(message)
             default:
                 break
+            }
+        }
+
+        private func handleExportSVGMessage(_ message: WKScriptMessage) {
+            guard !savePanelPresented,
+                  !pdfExportInProgress,
+                  let payload = message.body as? [String: Any],
+                  let blockID = payload["blockID"] as? String,
+                  let kind = payload["kind"] as? String,
+                  let svg = payload["svg"] as? String,
+                  ["mermaid", "d2"].contains(kind),
+                  blockID.count <= 128,
+                  blockID.range(
+                      of: #"^(mermaid|d2)-[0-9a-f]{16}-[0-9]+$"#,
+                      options: .regularExpression
+                  ) != nil,
+                  svg.utf8.count <= 8 * 1_024 * 1_024,
+                  svg.range(of: "<svg", options: .caseInsensitive) != nil,
+                  svg.range(of: "</svg>", options: .caseInsensitive) != nil else {
+                return
+            }
+
+            let sourceLine = (payload["sourceLine"] as? NSNumber)?.intValue
+            let lineSuffix = sourceLine.map { "-line-\(max($0, 1))" } ?? ""
+            let kindSuffix = safeDocumentBaseName.caseInsensitiveCompare(kind) == .orderedSame
+                ? ""
+                : "-\(kind)"
+            let suggestedName = "\(safeDocumentBaseName)\(kindSuffix)\(lineSuffix).svg"
+            let exportSVG = svg.hasPrefix("<?xml")
+                ? svg
+                : "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\(svg)"
+            let data = Data(exportSVG.utf8)
+
+            presentSavePanel(
+                suggestedName: suggestedName,
+                contentType: .svg
+            ) { [weak self] url in
+                do {
+                    try data.write(to: url, options: .atomic)
+                } catch {
+                    self?.showExportError("The SVG could not be saved.", error: error)
+                }
+            }
+        }
+
+        func exportPreviewPDF() {
+            guard !savePanelPresented, !pdfExportInProgress else {
+                return
+            }
+            guard runtimeReady, let webView else {
+                showAlert(
+                    title: "Preview Not Ready",
+                    message: "Wait for the Markdown preview to finish loading, then try again."
+                )
+                return
+            }
+
+            pdfExportInProgress = true
+            Task { [weak self, weak webView] in
+                guard let self, let webView else {
+                    self?.pdfExportInProgress = false
+                    return
+                }
+
+                do {
+                    let result = try await webView.callAsyncJavaScript(
+                        "return await window.previewRuntime.prepareForPDFExport();",
+                        arguments: [:],
+                        in: nil,
+                        contentWorld: .page
+                    )
+                    guard let readiness = result as? [String: Any],
+                          readiness["ready"] as? Bool == true else {
+                        let message = (result as? [String: Any])?["message"] as? String
+                            ?? "Some diagrams are still rendering. Try exporting again."
+                        pdfExportInProgress = false
+                        showAlert(title: "Preview Not Ready", message: message)
+                        return
+                    }
+
+                    presentSavePanel(
+                        suggestedName: "\(safeDocumentBaseName).pdf",
+                        contentType: .pdf
+                    ) { [weak self, weak webView] url in
+                        guard let self, let webView else {
+                            return
+                        }
+                        exportPDF(from: webView, to: url)
+                    }
+                } catch {
+                    pdfExportInProgress = false
+                    showExportError("The preview could not be prepared for PDF export.", error: error)
+                }
+            }
+        }
+
+        private func exportPDF(from webView: WKWebView, to url: URL) {
+            let printInfo = (NSPrintInfo.shared.copy() as? NSPrintInfo) ?? NSPrintInfo()
+            printInfo.jobDisposition = .save
+            printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url
+            printInfo.horizontalPagination = .fit
+            printInfo.verticalPagination = .automatic
+            printInfo.isHorizontallyCentered = true
+            printInfo.topMargin = 36
+            printInfo.bottomMargin = 36
+            printInfo.leftMargin = 36
+            printInfo.rightMargin = 36
+
+            let operation = webView.printOperation(with: printInfo)
+            operation.showsPrintPanel = false
+            operation.showsProgressPanel = true
+            let succeeded = operation.run()
+            pdfExportInProgress = false
+
+            if !succeeded || !FileManager.default.fileExists(atPath: url.path) {
+                showAlert(
+                    title: "PDF Export Failed",
+                    message: "The Markdown preview could not be written as a PDF."
+                )
+            }
+        }
+
+        private func presentSavePanel(
+            suggestedName: String,
+            contentType: UTType,
+            completion: @escaping (URL) -> Void
+        ) {
+            guard !savePanelPresented else {
+                return
+            }
+
+            savePanelPresented = true
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [contentType]
+            panel.canCreateDirectories = true
+            panel.isExtensionHidden = false
+            panel.nameFieldStringValue = suggestedName
+
+            let handleResponse: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+                guard let self else {
+                    return
+                }
+                savePanelPresented = false
+                guard response == .OK, let url = panel.url else {
+                    if contentType == .pdf {
+                        pdfExportInProgress = false
+                    }
+                    return
+                }
+                completion(url)
+            }
+
+            if let window = webView?.window {
+                panel.beginSheetModal(for: window, completionHandler: handleResponse)
+            } else {
+                handleResponse(panel.runModal())
+            }
+        }
+
+        private var safeDocumentBaseName: String {
+            let sanitized = documentBaseName
+                .map { "/:".contains($0) ? "-" : $0 }
+            let name = String(sanitized)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? "Untitled" : String(name.prefix(96))
+        }
+
+        private func showExportError(_ message: String, error: Error) {
+            showAlert(title: "Export Failed", message: "\(message)\n\n\(error.localizedDescription)")
+        }
+
+        private func showAlert(title: String, message: String) {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = title
+            alert.informativeText = message
+            if let window = webView?.window {
+                alert.beginSheetModal(for: window)
+            } else {
+                alert.runModal()
             }
         }
 

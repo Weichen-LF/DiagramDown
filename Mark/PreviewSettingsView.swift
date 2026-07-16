@@ -10,6 +10,7 @@ enum PreviewPreferences {
     static let markdownThemeKey = "MarkdownPreview.theme"
     static let mermaidLightThemeKey = "MermaidPreview.lightTheme"
     static let mermaidDarkThemeKey = "MermaidPreview.darkTheme"
+    static let zoomKey = "MarkdownPreview.zoom"
     static let d2LayoutKey = "D2Preview.layout"
     static let d2LightThemeIDKey = "D2Preview.lightThemeID"
     static let d2DarkThemeIDKey = "D2Preview.darkThemeID"
@@ -108,6 +109,7 @@ struct PreviewSettingsView: View {
         MermaidPreviewTheme.default.rawValue
     @AppStorage(PreviewPreferences.mermaidDarkThemeKey) private var mermaidDarkTheme =
         MermaidPreviewTheme.dark.rawValue
+    @AppStorage(PreviewPreferences.zoomKey) private var zoom = PreviewZoom.defaultValue
     @AppStorage(PreviewPreferences.d2LayoutKey) private var d2Layout =
         D2RenderConfiguration.Layout.dagre.rawValue
     @AppStorage(PreviewPreferences.d2LightThemeIDKey) private var d2LightThemeID =
@@ -136,6 +138,12 @@ struct PreviewSettingsView: View {
                         Text(theme.displayName).tag(theme.rawValue)
                     }
                 }
+                Stepper(
+                    "Zoom: \(PreviewZoom.clamped(zoom))%",
+                    value: $zoom,
+                    in: PreviewZoom.minimum...PreviewZoom.maximum,
+                    step: PreviewZoom.step
+                )
             }
 
             Section("Mermaid Preview") {
@@ -189,7 +197,7 @@ struct PreviewSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 610)
+        .frame(width: 520, height: 640)
     }
 
     private func restoreDefaults() {
@@ -198,6 +206,7 @@ struct PreviewSettingsView: View {
         markdownTheme = MarkdownPreviewTheme.diagramDown.rawValue
         mermaidLightTheme = MermaidPreviewTheme.default.rawValue
         mermaidDarkTheme = MermaidPreviewTheme.dark.rawValue
+        zoom = PreviewZoom.defaultValue
         d2Layout = d2Defaults.layout.rawValue
         d2LightThemeID = d2Defaults.lightThemeID
         d2DarkThemeID = d2Defaults.darkThemeID

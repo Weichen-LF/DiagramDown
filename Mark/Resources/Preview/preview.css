@@ -238,6 +238,7 @@ img {
 }
 
 .diagram {
+  position: relative;
   min-height: 96px;
   margin: 0 0 1.1em;
   padding: 18px;
@@ -245,6 +246,34 @@ img {
   border-radius: 9px;
   background: var(--diagram-background);
   overflow: auto;
+}
+
+.diagram-export-button {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  right: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  color: var(--secondary);
+  font: 600 11px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.diagram:hover .diagram-export-button,
+.diagram-export-button:focus-visible {
+  opacity: 1;
+}
+
+.diagram-export-button:hover {
+  border-color: var(--quote-border);
+  color: var(--foreground);
 }
 
 .diagram svg {
@@ -280,4 +309,42 @@ img {
 .diagram-error summary {
   cursor: pointer;
   font-weight: 600;
+}
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html,
+  body {
+    min-height: auto;
+    background: var(--background);
+  }
+
+  .markdown-body {
+    width: 100%;
+    max-width: none;
+    padding: 0;
+  }
+
+  .diagram-export-button {
+    display: none;
+  }
+
+  .diagram,
+  blockquote,
+  pre,
+  table {
+    break-inside: avoid;
+  }
+
+  .diagram,
+  pre,
+  table {
+    overflow: visible;
+  }
 }

@@ -936,8 +936,11 @@ SVG 不适合直接按完整字符串比较，因为版本升级可能改变无�
 - 稳定 block ID
 - revision 管理
 - 滚动同步
-- 预览缩放
-- 导出 SVG/PNG/PDF
+- 50%–200% 持久化预览缩放
+- Mermaid/D2 单图 SVG 导出
+- 整篇 Markdown 预览分页导出 PDF
+
+当前导出范围不包含 PNG，也不包含单个图表的 PDF 导出。
 
 ### Phase 6：发布准备
 

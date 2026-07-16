@@ -8,7 +8,36 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Preview zoom and export
+- Stability and automated testing
+- Signing, notarization, and release preparation
+
+## [0.12.0] - 2026-07-16
+
+### Added
+
+- Full Markdown preview export to a paginated PDF
+- Toolbar and Preview menu actions for starting PDF export
+- Print-specific preview styling that preserves colors and avoids splitting diagrams when possible
+- Export readiness checks that wait for Mermaid, D2, fonts, and final layout
+
+## [0.11.0] - 2026-07-16
+
+### Added
+
+- Per-diagram SVG export for successfully rendered Mermaid and D2 blocks
+- Native save panels with document-, diagram-, and source-line-based filenames
+
+## [0.10.0] - 2026-07-16
+
+### Added
+
+- Persistent 50–200% Markdown preview zoom
+- Preview toolbar controls, preset zoom menu, and Settings control
+- Preview menu commands for zoom in, zoom out, and actual size
+
+### Changed
+
+- Preview zoom now uses WebKit's native page zoom without re-rendering Markdown or diagrams
 
 ## [0.9.0] - 2026-07-16
 

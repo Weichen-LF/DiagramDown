@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Binding var document: MarkdownDocument
+    let fileURL: URL?
     @AppStorage(PreviewPreferences.appearanceKey) private var appearance =
         AppAppearance.system.rawValue
     @AppStorage(PreviewPreferences.markdownThemeKey) private var markdownTheme =
@@ -27,6 +28,8 @@ struct ContentView: View {
         D2RenderConfiguration.preview.padding
     @AppStorage(PreviewPreferences.d2SketchKey) private var d2Sketch =
         D2RenderConfiguration.preview.sketch
+    @AppStorage(PreviewPreferences.zoomKey) private var previewZoom = PreviewZoom.defaultValue
+    @StateObject private var previewController = PreviewController()
     @State private var editorScrollPosition = ScrollSyncPosition.initial
     @State private var editorScrollTarget = ScrollSyncTarget.initial
 
@@ -42,6 +45,9 @@ struct ContentView: View {
             MarkdownPreviewView(
                 markdown: document.text,
                 configuration: previewConfiguration,
+                zoom: PreviewZoom.clamped(previewZoom),
+                documentBaseName: documentBaseName,
+                previewController: previewController,
                 editorScrollPosition: editorScrollPosition,
                 onPreviewScroll: synchronizeEditor,
                 onSourceLineSelected: selectSourceLine
@@ -49,6 +55,60 @@ struct ContentView: View {
                 .frame(minWidth: 320, idealWidth: 560)
         }
         .frame(minWidth: 720, minHeight: 420)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    previewZoom = PreviewZoom.clamped(previewZoom - PreviewZoom.step)
+                } label: {
+                    Label("Zoom Out", systemImage: "minus.magnifyingglass")
+                }
+                .disabled(PreviewZoom.clamped(previewZoom) <= PreviewZoom.minimum)
+
+                Menu {
+                    ForEach(PreviewZoom.menuValues, id: \.self) { value in
+                        Button {
+                            previewZoom = value
+                        } label: {
+                            if value == PreviewZoom.clamped(previewZoom) {
+                                Label("\(value)%", systemImage: "checkmark")
+                            } else {
+                                Text("\(value)%")
+                            }
+                        }
+                    }
+                } label: {
+                    Text("\(PreviewZoom.clamped(previewZoom))%")
+                        .monospacedDigit()
+                        .frame(minWidth: 42)
+                }
+                .help("Preview Zoom")
+
+                Button {
+                    previewZoom = PreviewZoom.clamped(previewZoom + PreviewZoom.step)
+                } label: {
+                    Label("Zoom In", systemImage: "plus.magnifyingglass")
+                }
+                .disabled(PreviewZoom.clamped(previewZoom) >= PreviewZoom.maximum)
+
+                Button {
+                    previewController.exportPDF()
+                } label: {
+                    Label("Export Preview as PDF", systemImage: "doc.richtext")
+                }
+                .help("Export Preview as PDF…")
+            }
+        }
+        .focusedSceneValue(
+            \.previewExportPDFAction,
+            PreviewExportPDFAction(perform: previewController.exportPDF)
+        )
+    }
+
+    private var documentBaseName: String {
+        guard let fileURL else {
+            return "Untitled"
+        }
+        return fileURL.deletingPathExtension().lastPathComponent
     }
 
     private var previewConfiguration: PreviewConfiguration {
@@ -94,7 +154,7 @@ struct ContentView: View {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView(document: .constant(MarkdownDocument()))
+        ContentView(document: .constant(MarkdownDocument()), fileURL: nil)
             .frame(width: 1_120, height: 720)
     }
 }

@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.9.0` adds a persistent D2 render cache:
+Version `0.12.0` completes the first preview zoom and export milestones:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -33,6 +33,9 @@ Version `0.9.0` adds a persistent D2 render cache:
 - Follow System, Light, and Dark appearance modes for the whole application
 - DiagramDown, GitHub, and Paper Markdown preview themes
 - Independent light and dark Mermaid theme selection
+- Persistent 50–200% preview zoom with toolbar, menu, keyboard, and Settings controls
+- Per-diagram SVG export for successfully rendered Mermaid and D2 blocks
+- Full-document Markdown preview export to paginated PDF
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
@@ -65,6 +68,7 @@ xcodebuild \
 - `Mark/ScrollSyncState.swift`: editor-preview scroll position and source target state
 - `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and two-level cache
 - `Mark/PreviewSettingsView.swift`: persistent appearance and preview preferences
+- `Mark/PreviewCommands.swift`: preview zoom and PDF export commands
 - `Mark/Resources/Preview`: bundled offline preview runtime
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
 - `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
@@ -83,4 +87,8 @@ xcodebuild \
 7. D2 preview settings — complete
 8. Application appearance and preview themes — complete
 9. Disk cache — complete
-10. Preview zoom and export — next
+10. Persistent preview zoom — complete
+11. Mermaid and D2 diagram SVG export — complete
+12. Full Markdown preview PDF export — complete
+13. Stability and automated testing — next
+14. Signing, notarization, and release preparation — planned
