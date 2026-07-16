@@ -8,17 +8,17 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Binding var document: MarkdownDocument
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        MarkdownEditorView(text: $document.text)
+            .frame(minWidth: 480, minHeight: 320)
     }
 }
 
-#Preview {
-    ContentView()
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView(document: .constant(MarkdownDocument()))
+            .frame(width: 720, height: 480)
+    }
 }
