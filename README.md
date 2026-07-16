@@ -8,10 +8,11 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.6.1` adds source-aware synchronization between the editor and preview:
+Version `0.6.2` adds native source line numbers and keeps the bidirectional editor-preview synchronization introduced in 0.6.1:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
+- Native line-number gutter with logical-line numbering and current-line emphasis
 - Undo and redo, selection, scrolling, and find bar support
 - UTF-8 document storage and automatic document saving
 - App Sandbox access to user-selected files
@@ -53,6 +54,7 @@ xcodebuild \
 
 - `Mark/MarkdownDocument.swift`: Markdown file lifecycle
 - `Mark/MarkdownEditorView.swift`: native AppKit editor embedded in SwiftUI
+- `Mark/LineNumberRulerView.swift`: visible logical-line numbering for the native editor
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
 - `Mark/ScrollSyncState.swift`: editor-preview scroll position and source target state

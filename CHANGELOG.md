@@ -10,6 +10,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - D2 preview settings
 
+## [0.6.2] - 2026-07-16
+
+### Added
+
+- Native line-number gutter beside the Markdown source editor
+- Logical-line numbering that does not renumber wrapped continuation lines
+- Current-line emphasis, dynamic gutter width, and light/dark appearance support
+
+### Changed
+
+- Line numbers now refresh with text edits, selection changes, and both user and synchronized scrolling
+
 ## [0.6.1] - 2026-07-16
 
 ### Changed

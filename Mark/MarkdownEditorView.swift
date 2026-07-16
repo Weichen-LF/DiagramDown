@@ -54,7 +54,18 @@ struct MarkdownEditorView: NSViewRepresentable {
         textView.isAutomaticLinkDetectionEnabled = false
 
         scrollView.documentView = textView
-        context.coordinator.attach(scrollView: scrollView, textView: textView)
+        let lineNumberRuler = LineNumberRulerView(
+            scrollView: scrollView,
+            textView: textView
+        )
+        scrollView.verticalRulerView = lineNumberRuler
+        scrollView.hasVerticalRuler = true
+        scrollView.rulersVisible = true
+        context.coordinator.attach(
+            scrollView: scrollView,
+            textView: textView,
+            lineNumberRuler: lineNumberRuler
+        )
         return scrollView
     }
 
@@ -89,6 +100,7 @@ struct MarkdownEditorView: NSViewRepresentable {
         @Binding private var scrollPosition: ScrollSyncPosition
         private weak var scrollView: NSScrollView?
         private weak var textView: NSTextView?
+        private weak var lineNumberRuler: LineNumberRulerView?
         private var boundsObserver: NSObjectProtocol?
         private var lineStartOffsets: [Int]?
         private var scrollGeneration: UInt64 = 0
@@ -104,15 +116,21 @@ struct MarkdownEditorView: NSViewRepresentable {
             _scrollPosition = scrollPosition
         }
 
-        func attach(scrollView: NSScrollView, textView: NSTextView) {
+        func attach(
+            scrollView: NSScrollView,
+            textView: NSTextView,
+            lineNumberRuler: LineNumberRulerView
+        ) {
             self.scrollView = scrollView
             self.textView = textView
+            self.lineNumberRuler = lineNumberRuler
             scrollView.contentView.postsBoundsChangedNotifications = true
             boundsObserver = NotificationCenter.default.addObserver(
                 forName: NSView.boundsDidChangeNotification,
                 object: scrollView.contentView,
                 queue: .main
             ) { [weak self] _ in
+                self?.lineNumberRuler?.needsDisplay = true
                 guard self?.isApplyingScrollTarget == false else {
                     return
                 }
@@ -137,6 +155,7 @@ struct MarkdownEditorView: NSViewRepresentable {
 
         func invalidateLineStarts() {
             lineStartOffsets = nil
+            lineNumberRuler?.invalidateLineStarts()
         }
 
         func textDidChange(_ notification: Notification) {
@@ -147,6 +166,10 @@ struct MarkdownEditorView: NSViewRepresentable {
 
             text = textView.string
             invalidateLineStarts()
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            lineNumberRuler?.needsDisplay = true
         }
 
         func apply(scrollTarget: ScrollSyncTarget) {
