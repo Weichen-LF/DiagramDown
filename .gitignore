@@ -15,8 +15,10 @@ build/
 DerivedData/
 *.hmap
 *.ipa
+*.xcarchive
 *.dSYM
 *.dSYM.zip
+artifacts/
 
 # Swift Package Manager
 .build/

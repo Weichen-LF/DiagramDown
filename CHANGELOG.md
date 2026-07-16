@@ -8,7 +8,22 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ### Planned
 
-- Signing, notarization, and release preparation
+- Universal D2 helper and first public release
+
+## [0.16.0] - 2026-07-16
+
+### Added
+
+- A repeatable arm64 archive and Developer ID export workflow with optional notarization and ticket stapling
+- Release validation for application and D2 helper architectures, nested signatures, Hardened Runtime, sandbox entitlements, bundled licenses, and Gatekeeper acceptance
+- A Keychain-based notarization and final-device smoke-test runbook
+
+### Changed
+
+- The application build number is now 16 and release builds explicitly match the arm64 D2 helper architecture
+- Release builds no longer inject Xcode's base debugging entitlements
+- Application sandbox permissions now come from an explicit, reviewable entitlement file
+- Release archives and generated artifacts are excluded from version control
 
 ## [0.15.0] - 2026-07-16
 

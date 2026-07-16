@@ -947,13 +947,13 @@ SVG 不适合直接按完整字符串比较，因为版本升级可能改变无�
 
 ### Phase 6：发布准备
 
-- Swift 单元测试和 Web 预览运行时结构测试
-- Hardened Runtime
-- App Sandbox 验证
-- 公证和签名
-- 第三方 license/notice
-- 自动更新
-- Universal build 或 arm64-only 发布策略
+- Swift 单元测试和 Web 预览运行时结构测试（已完成）
+- Hardened Runtime（主应用和 D2 helper 均已纳入发布校验）
+- App Sandbox 验证（已完成自动校验）
+- Developer ID 签名、公证、staple 和 Gatekeeper 验证（已完成可重复执行的发布脚本）
+- 第三方 license/notice（已随应用打包并纳入发布校验）
+- arm64-only 发布策略（当前已完成；Universal D2 helper 后续实现）
+- 自动更新（第一版公开发布后再评估，不阻塞当前独立分发）
 
 ---
 
@@ -1016,6 +1016,8 @@ Mermaid 为 MIT 许可，仍应在应用的 Third-Party Licenses 中保留版权
 - arm64/x86_64 目标架构是否一致
 
 直接通过签名和公证的 DMG 分发，通常比第一版直接进入 Mac App Store 更适合验证该架构。
+
+当前 0.16 发布流程先产出经过 Developer ID 签名、公证并 stapled 的 ZIP，避免在 MVP 阶段同时引入 DMG 制作工具。脚本不会自动发布产物；最终 ZIP 仍需在另一台 Apple Silicon Mac 上进行 Gatekeeper 冷启动和核心功能冒烟测试。
 
 ---
 

@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.15.0` establishes the first automated stability suite:
+Version `0.16.0` adds a repeatable Developer ID release workflow for the Apple Silicon build:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -41,6 +41,8 @@ Version `0.15.0` establishes the first automated stability suite:
 - Two-finger trackpad pinch zoom for the Markdown preview and focused diagram viewer
 - Native unit tests for zoom, layouts, document encoding, D2 configuration, and scroll state
 - Structural preview-runtime tests for offline assets, CSP, WebKit bridges, diagram controls, and gestures
+- Automated arm64 archive, Developer ID export, ZIP packaging, notarization, and ticket stapling
+- Release validation for nested signatures, Hardened Runtime, sandbox entitlements, architectures, licenses, and Gatekeeper
 
 The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
 
@@ -74,6 +76,16 @@ Run the complete Swift and preview-runtime test suite:
 
 The Swift tests can also be run from Xcode with the `Mark` scheme.
 
+## Release
+
+The release workflow builds and validates a Developer ID archive without publishing it:
+
+```sh
+./Scripts/release.sh
+```
+
+Add `--notary-profile PROFILE_NAME` to submit with credentials already stored in the macOS Keychain. See `docs/release.md` for certificate setup, notarization, validation, and final smoke-test guidance.
+
 ## Project layout
 
 - `Mark/MarkdownDocument.swift`: Markdown file lifecycle
@@ -85,15 +97,20 @@ The Swift tests can also be run from Xcode with the `Mark` scheme.
 - `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and two-level cache
 - `Mark/PreviewSettingsView.swift`: persistent appearance and preview preferences
 - `Mark/PreviewCommands.swift`: preview zoom and PDF export commands
+- `Mark/DiagramDown.entitlements`: explicit sandbox permissions used by signed builds
 - `Mark/Resources/Preview`: bundled offline preview runtime
 - `MarkTests`: native unit tests for core document and preview behavior
 - `Tests/PreviewRuntimeTests.mjs`: offline preview structure and bridge regression tests
 - `Scripts/test.sh`: complete local test entry point
+- `Scripts/release.sh`: Developer ID archive, export, packaging, and optional notarization
+- `Scripts/validate-release.sh`: architecture, signature, entitlement, license, and Gatekeeper checks
+- `Config/ExportOptions-DeveloperID.plist`: reproducible Developer ID export configuration
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
 - `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
 - `docs/examples/d2.md`: D2 rendering smoke-test document
 - `docs/swiftui-markdown-mermaid-d2-design.md`: architecture and phased implementation plan
 - `docs/product-identity.md`: working name, icon, and visual identity notes
+- `docs/release.md`: signing, notarization, and release runbook
 
 ## Roadmap
 
@@ -112,4 +129,5 @@ The Swift tests can also be run from Xcode with the `Mark` scheme.
 13. Document view modes and focused diagram zoom — complete
 14. Trackpad pinch zoom across preview surfaces — complete
 15. Stability and automated testing — complete for the first suite
-16. Signing, notarization, and release preparation — next
+16. Signing, notarization, and release preparation — complete for the arm64 Developer ID workflow
+17. Universal D2 helper and first public release — next
