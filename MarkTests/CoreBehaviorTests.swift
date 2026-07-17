@@ -65,6 +65,123 @@ final class MarkdownFileCodecTests: XCTestCase {
     }
 }
 
+final class OnboardingTests: XCTestCase {
+    func testBundledExampleExercisesMarkdownAndBothDiagramRenderers() throws {
+        let source = try ExampleDocument.source()
+
+        XCTAssertTrue(source.contains("# Welcome to DiagramDown"))
+        XCTAssertTrue(source.contains("```mermaid"))
+        XCTAssertTrue(source.contains("```d2"))
+        XCTAssertTrue(source.contains("## Export"))
+    }
+
+    func testHelpLinksUseSecureProjectURLs() {
+        let links = [
+            DiagramDownLinks.project,
+            DiagramDownLinks.feedback,
+            DiagramDownLinks.releaseNotes,
+        ]
+
+        XCTAssertTrue(links.allSatisfy { $0.scheme == "https" })
+        XCTAssertTrue(links.allSatisfy { $0.host == "github.com" })
+        XCTAssertTrue(links.allSatisfy { $0.path.hasPrefix("/Weichen-LF/DiagramDown") })
+    }
+
+    func testBlankEditorGuidancePointsToTheExampleDocument() {
+        XCTAssertTrue(EditorGuidance.placeholder.contains("Help"))
+        XCTAssertTrue(EditorGuidance.placeholder.contains("Example Document"))
+    }
+}
+
+final class DiagnosticsReportTests: XCTestCase {
+    func testReportContainsActionableEnvironmentAndConfiguration() {
+        let snapshot = DiagnosticsSnapshot(
+            generatedAt: Date(timeIntervalSince1970: 0),
+            appVersion: "0.19.0",
+            buildNumber: "19",
+            operatingSystem: "macOS test",
+            architecture: "arm64",
+            locale: "en_US",
+            d2HelperAvailable: true,
+            preferences: DiagnosticsPreferences(
+                appearance: "dark",
+                markdownTheme: "github",
+                mermaidLightTheme: "forest",
+                mermaidDarkTheme: "dark",
+                previewZoom: 125,
+                d2Layout: "elk",
+                d2LightThemeID: 3,
+                d2DarkThemeID: 201,
+                d2Padding: 64,
+                d2Sketch: true
+            ),
+            cache: D2CacheStatistics(fileCount: 4, totalBytes: 1_024)
+        )
+
+        let report = DiagnosticsReport.make(from: snapshot)
+
+        XCTAssertTrue(report.contains("Version: 0.19.0 (19)"))
+        XCTAssertTrue(report.contains("Architecture: arm64"))
+        XCTAssertTrue(report.contains("Markdown theme: github"))
+        XCTAssertTrue(report.contains("Layout: elk"))
+        XCTAssertTrue(report.contains("Disk cache entries: 4"))
+        XCTAssertTrue(report.contains("document content"))
+    }
+
+    func testCurrentReportDoesNotLeakUnknownPreferenceValuesOrCachePaths() throws {
+        let suiteName = "DiagnosticsReportTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let secret = "private-document-content-and-path"
+        defaults.set(secret, forKey: PreviewPreferences.appearanceKey)
+        defaults.set(secret, forKey: PreviewPreferences.markdownThemeKey)
+        defaults.set(secret, forKey: PreviewPreferences.d2LayoutKey)
+
+        let cacheURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(secret, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: cacheURL,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: cacheURL) }
+
+        let report = DiagnosticsReport.current(
+            defaults: defaults,
+            cacheDirectoryURL: cacheURL,
+            generatedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertFalse(report.contains(secret))
+        XCTAssertTrue(report.contains("Appearance: system"))
+        XCTAssertTrue(report.contains("Markdown theme: diagramDown"))
+        XCTAssertTrue(report.contains("Layout: dagre"))
+    }
+
+    func testCacheStatisticsCountOnlyRegularSVGFiles() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Data(repeating: 1, count: 12).write(
+            to: directory.appendingPathComponent("first.svg")
+        )
+        try Data(repeating: 2, count: 20).write(
+            to: directory.appendingPathComponent("second.SVG")
+        )
+        try Data(repeating: 3, count: 99).write(
+            to: directory.appendingPathComponent("ignored.txt")
+        )
+
+        XCTAssertEqual(
+            D2CacheStatistics.collect(at: directory),
+            D2CacheStatistics(fileCount: 2, totalBytes: 32)
+        )
+    }
+}
+
 final class D2ConfigurationTests: XCTestCase {
     func testPreviewCacheDescriptorIsStable() {
         XCTAssertEqual(

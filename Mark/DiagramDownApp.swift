@@ -19,6 +19,7 @@ struct DiagramDownApp: App {
         }
         .commands {
             PreviewCommands()
+            AppCommands()
         }
 
         Settings {
