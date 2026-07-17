@@ -1,6 +1,7 @@
 # DiagramDown
 
 [![CI](https://github.com/Weichen-LF/DiagramDown/actions/workflows/ci.yml/badge.svg)](https://github.com/Weichen-LF/DiagramDown/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Weichen-LF/DiagramDown/actions/workflows/codeql.yml/badge.svg)](https://github.com/Weichen-LF/DiagramDown/actions/workflows/codeql.yml)
 
 ![DiagramDown app icon](Mark/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png)
 
