@@ -30,6 +30,8 @@ xcodebuild \
   -derivedDataPath /tmp/DiagramDownReleaseDerivedData \
   ARCHS=arm64 \
   ONLY_ACTIVE_ARCH=NO \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO \
   build
 ```
 
@@ -46,7 +48,7 @@ Manually verify visible behavior when changing editor layout, scrolling, themes,
 
 ## Bundled dependencies
 
-Changes to Mermaid, markdown-it, or D2 must update the bundled artifact, version documentation, provenance or checksum, and corresponding license notice together. D2 remains an arm64 helper until the universal distribution work is complete.
+Changes to Mermaid, markdown-it, or D2 must update the bundled artifact, version documentation, provenance or checksum, and corresponding license notice together. The first beta intentionally ships the D2 helper as arm64; universal distribution is later work.
 
 ## Pull requests
 
