@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Show toolchain versions
+        run: |
+          node --version
+          xcodebuild -version
+          swift --version
+
+      - name: Run automated tests
+        env:
+          CI: "true"
+          DIAGRAMDOWN_DERIVED_DATA_PATH: ${{ runner.temp }}/DiagramDownTestDerivedData
+        run: ./Scripts/test.sh
+
+      - name: Build arm64 Release application
+        run: |
+          xcodebuild \
+            -project Mark.xcodeproj \
+            -scheme Mark \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "${RUNNER_TEMP}/DiagramDownReleaseDerivedData" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build

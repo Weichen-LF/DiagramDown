@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a reproducible problem in DiagramDown.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve DiagramDown. Please remove private document content and credentials from logs or examples.
+
+  - type: input
+    id: version
+    attributes:
+      label: DiagramDown version
+      description: Find this in the application version information or release filename.
+      placeholder: 0.16.0 (16)
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 15.7
+    validations:
+      required: true
+
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: Hardware
+      options:
+        - Apple Silicon
+        - Intel
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem
+      description: Describe what went wrong and how it affected your work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a Markdown document containing...
+        2. Change...
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal Markdown sample
+      description: Include the smallest safe example that reproduces the problem, if applicable.
+      render: markdown
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste only logs related to this problem. Remove usernames, private paths, document contents, and credentials.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I removed sensitive information from samples and logs.
+          required: true

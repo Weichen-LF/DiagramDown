@@ -6,6 +6,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions CI for automated tests and an unsigned arm64 Release build
+- Dependabot updates for pinned GitHub Actions
+- Contribution, security, issue, and pull-request guidance for repository collaboration
+
 ### Planned
 
 - Universal D2 helper and first public release

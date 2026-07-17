@@ -86,6 +86,10 @@ The release workflow builds and validates a Developer ID archive without publish
 
 Add `--notary-profile PROFILE_NAME` to submit with credentials already stored in the macOS Keychain. See `docs/release.md` for certificate setup, notarization, validation, and final smoke-test guidance.
 
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance. Report security-sensitive problems privately by following [SECURITY.md](SECURITY.md); do not include vulnerabilities, credentials, or private documents in regular issues.
+
 ## Project layout
 
 - `Mark/MarkdownDocument.swift`: Markdown file lifecycle
