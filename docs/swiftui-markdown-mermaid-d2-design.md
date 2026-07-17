@@ -950,10 +950,11 @@ SVG 不适合直接按完整字符串比较，因为版本升级可能改变无�
 - Swift 单元测试和 Web 预览运行时结构测试（已完成）
 - Hardened Runtime（主应用和 D2 helper 均已纳入发布校验）
 - App Sandbox 验证（已完成自动校验）
-- 无付费开发者账号时的 ad-hoc 签名 Apple Silicon 私测包与 SHA-256 校验（已完成；不能作为公开发布物）
-- Developer ID 签名、公证、staple 和 Gatekeeper 验证（已完成可重复执行的正式发布脚本，待加入 Apple Developer Program 后使用）
+- ad-hoc 签名 Apple Silicon Community Release 与 SHA-256 校验（已完成；公开发布时必须醒目标注未经 Apple 公证及 Gatekeeper 首次启动方式）
+- tag 驱动的 GitHub Release 自动构建、校验与发布（0.17 已完成）
+- Developer ID 签名、公证、staple 和 Gatekeeper 验证（保留为未来可选的分发增强，不阻塞当前 Community Release）
 - 第三方 license/notice（已随应用打包并纳入发布校验）
-- Apple Silicon-only 第一版策略（当前已完成；Universal D2 helper 和 Intel 支持延后，不阻塞第一版私测）
+- Apple Silicon-only 第一版策略（当前已完成；Universal D2 helper 和 Intel 支持延后，不阻塞第一版公开发布）
 - 自动更新（第一版公开发布后再评估，不阻塞当前独立分发）
 
 ---
@@ -1018,7 +1019,7 @@ Mermaid 为 MIT 许可，仍应在应用的 Third-Party Licenses 中保留版权
 
 直接通过签名和公证的 DMG 分发，通常比第一版直接进入 Mac App Store 更适合验证该架构。
 
-当前 0.16 提供两条严格分离的流程：无付费账号时生成 ad-hoc 签名、未经公证的 Apple Silicon 私测 ZIP；加入 Apple Developer Program 后，再使用 Developer ID 签名、公证并 staple 的正式 ZIP。两个脚本都不会自动发布产物。私测包必须明确标识为非公开发布物；最终正式 ZIP 仍需在另一台 Apple Silicon Mac 上进行 Gatekeeper 冷启动和核心功能冒烟测试。
+当前 0.17 的默认公开分发是 Apple Silicon Community Release：tag 工作流运行完整测试，生成 ad-hoc 签名、未经 Apple 公证的 ZIP，验证架构、Sandbox、Hardened Runtime、nested D2 签名和 license，随后创建带 SHA-256 文件的 GitHub Release。下载页必须明确说明 Gatekeeper 限制和安全的首次启动方法。Developer ID、公证和 staple 流程继续保留为未来可选增强，不再阻塞当前版本发布。当前发布门禁仅使用命令行和自动化检查，不使用 GUI 自动化；综合测试文档可供后续人工冒烟验证。
 
 ---
 
