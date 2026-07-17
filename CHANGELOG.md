@@ -11,10 +11,18 @@ The project follows [Semantic Versioning](https://semver.org/).
 - GitHub Actions CI for automated tests and an unsigned arm64 Release build
 - Dependabot updates for pinned GitHub Actions
 - Contribution, security, issue, and pull-request guidance for repository collaboration
+- MIT project license
+- Apple Silicon private-beta packaging with ad-hoc signature validation and a SHA-256 checksum
+
+### Changed
+
+- The first beta is explicitly Apple Silicon-only; a universal D2 helper and Intel support are deferred
+- Developer ID notarization remains the official public-release path after Apple Developer Program enrollment
 
 ### Planned
 
-- Universal D2 helper and first public release
+- Private Apple Silicon beta testing
+- Developer ID notarization and first public release
 
 ## [0.16.0] - 2026-07-16
 

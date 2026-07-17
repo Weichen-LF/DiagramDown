@@ -4,8 +4,9 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./Scripts/validate-release.sh APP_PATH [--distribution] [--notarized]
+Usage: ./Scripts/validate-release.sh APP_PATH [--adhoc | --distribution] [--notarized]
 
+  --adhoc        Require local ad-hoc signatures without a signing team.
   --distribution  Require Developer ID Application signatures.
   --notarized     Also validate the stapled ticket and Gatekeeper assessment.
 EOF
@@ -17,11 +18,15 @@ fail() {
 }
 
 app_path=""
+require_adhoc=false
 require_distribution=false
 require_notarized=false
 
 while (( $# > 0 )); do
   case "$1" in
+    --adhoc)
+      require_adhoc=true
+      ;;
     --distribution)
       require_distribution=true
       ;;
@@ -44,6 +49,10 @@ while (( $# > 0 )); do
   esac
   shift
 done
+
+if [[ "$require_adhoc" == true && "$require_distribution" == true ]]; then
+  fail "--adhoc cannot be combined with --distribution or --notarized."
+fi
 
 [[ -n "$app_path" ]] || {
   usage >&2
@@ -69,7 +78,7 @@ d2_executable="$app_path/Contents/Helpers/d2"
 [[ -x "$main_executable" ]] || fail "Missing main executable: $main_executable"
 [[ -x "$d2_executable" ]] || fail "Missing D2 helper: $d2_executable"
 
-for license_name in MarkdownIt-LICENSE.txt Mermaid-LICENSE.txt D2-LICENSE.txt; do
+for license_name in LICENSE MarkdownIt-LICENSE.txt Mermaid-LICENSE.txt D2-LICENSE.txt; do
   [[ -f "$app_path/Contents/Resources/$license_name" ]] || fail "Missing bundled license: $license_name"
 done
 
@@ -98,6 +107,13 @@ app_signature="$(codesign -dvvv "$app_path" 2>&1 || true)"
 d2_signature="$(codesign -dvvv "$d2_executable" 2>&1 || true)"
 [[ "$app_signature" == *"runtime"* ]] || fail "The application is missing Hardened Runtime."
 [[ "$d2_signature" == *"runtime"* ]] || fail "The D2 helper is missing Hardened Runtime."
+
+if [[ "$require_adhoc" == true ]]; then
+  [[ "$app_signature" == *"Signature=adhoc"* ]] || fail "The application is not ad-hoc signed."
+  [[ "$d2_signature" == *"Signature=adhoc"* ]] || fail "The D2 helper is not ad-hoc signed."
+  [[ "$app_signature" == *"TeamIdentifier=not set"* ]] || fail "The ad-hoc application unexpectedly has a signing team."
+  [[ "$d2_signature" == *"TeamIdentifier=not set"* ]] || fail "The ad-hoc D2 helper unexpectedly has a signing team."
+fi
 
 if [[ "$require_distribution" == true ]]; then
   get_task_allow="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.get-task-allow' "$app_entitlements" 2>/dev/null || print false)"

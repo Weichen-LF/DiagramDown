@@ -8,7 +8,7 @@ The name combines the product's two core ideas: diagrams and Markdown. It is a w
 
 ## Current status
 
-Version `0.16.0` adds a repeatable Developer ID release workflow for the Apple Silicon build:
+Version `0.16.0` adds a repeatable release foundation for the Apple Silicon build:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -43,8 +43,9 @@ Version `0.16.0` adds a repeatable Developer ID release workflow for the Apple S
 - Structural preview-runtime tests for offline assets, CSP, WebKit bridges, diagram controls, and gestures
 - Automated arm64 archive, Developer ID export, ZIP packaging, notarization, and ticket stapling
 - Release validation for nested signatures, Hardened Runtime, sandbox entitlements, architectures, licenses, and Gatekeeper
+- MIT license bundled with packaged builds
 
-The bundled D2 helper currently supports Apple Silicon Macs. A universal helper is planned before public release.
+The first beta supports Apple Silicon Macs only. Intel support and a universal D2 helper are deferred until after the initial beta.
 
 ## Requirements
 
@@ -63,6 +64,7 @@ xcodebuild \
   -scheme Mark \
   -configuration Debug \
   -derivedDataPath /tmp/DiagramDownDerivedData \
+  CODE_SIGNING_ALLOWED=NO \
   build
 ```
 
@@ -76,15 +78,23 @@ Run the complete Swift and preview-runtime test suite:
 
 The Swift tests can also be run from Xcode with the `Mark` scheme.
 
-## Release
+## Private beta and release
 
-The release workflow builds and validates a Developer ID archive without publishing it:
+Without a paid Apple Developer account, create an Apple Silicon private-test package with local ad-hoc signatures:
+
+```sh
+./Scripts/package-private-beta.sh
+```
+
+The result is not notarized and must not be published as an official release. The separate Developer ID workflow remains available for use after developer-program enrollment:
 
 ```sh
 ./Scripts/release.sh
 ```
 
-Add `--notary-profile PROFILE_NAME` to submit with credentials already stored in the macOS Keychain. See `docs/release.md` for certificate setup, notarization, validation, and final smoke-test guidance.
+Add `--notary-profile PROFILE_NAME` to submit with credentials already stored in the macOS Keychain. See `docs/release.md` for private-beta limitations, checksum verification, certificate setup, notarization, and final smoke-test guidance.
+
+DiagramDown is licensed under the [MIT License](LICENSE). The repository may remain private while early development and testing continue.
 
 ## Contributing and security
 
@@ -106,6 +116,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `MarkTests`: native unit tests for core document and preview behavior
 - `Tests/PreviewRuntimeTests.mjs`: offline preview structure and bridge regression tests
 - `Scripts/test.sh`: complete local test entry point
+- `Scripts/package-private-beta.sh`: ad-hoc signed Apple Silicon test packaging and checksum generation
 - `Scripts/release.sh`: Developer ID archive, export, packaging, and optional notarization
 - `Scripts/validate-release.sh`: architecture, signature, entitlement, license, and Gatekeeper checks
 - `Config/ExportOptions-DeveloperID.plist`: reproducible Developer ID export configuration
@@ -134,4 +145,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 14. Trackpad pinch zoom across preview surfaces — complete
 15. Stability and automated testing — complete for the first suite
 16. Signing, notarization, and release preparation — complete for the arm64 Developer ID workflow
-17. Universal D2 helper and first public release — next
+17. Apple Silicon private-beta packaging and MIT licensing — complete
+18. Developer ID notarization and first public release — deferred until developer-program enrollment
+19. Universal D2 helper and Intel support — later; not required for the first beta
