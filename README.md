@@ -11,7 +11,7 @@ The name combines the product's two core ideas: diagrams and Markdown.
 
 ## Current status
 
-Version `0.19.0` improves first-run guidance and support diagnostics for the Apple Silicon community release:
+Version `0.20.0` fixes full-document PDF export and adds offline formatting and code highlighting:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -39,6 +39,9 @@ Version `0.19.0` improves first-run guidance and support diagnostics for the App
 - Persistent 50–200% preview zoom with toolbar, menu, keyboard, and Settings controls
 - Per-diagram SVG export for successfully rendered Mermaid and D2 blocks
 - Full-document Markdown preview export to paginated PDF
+- Offline Markdown and embedded-code formatting with bundled Prettier
+- Official D2 fenced-block formatting with the bundled `d2 fmt` command
+- Preview syntax highlighting for explicitly labeled code fences
 - Per-window Editor Only, Editor and Preview, and Preview Only layouts
 - Focused Mermaid and D2 diagram viewer with fit, 25%–400% zoom, and keyboard controls
 - Two-finger trackpad pinch zoom for the Markdown preview and focused diagram viewer
@@ -117,6 +120,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 
 - `Mark/MarkdownDocument.swift`: Markdown file lifecycle
 - `Mark/MarkdownEditorView.swift`: native AppKit editor embedded in SwiftUI
+- `Mark/MarkdownFormattingService.swift`: isolated offline Prettier runtime and formatting coordination
+- `Mark/FormattingCommands.swift`: native Format Document command and focused action
 - `Mark/LineNumberTextView.swift`: native editor text drawing with visible logical-line numbering
 - `Mark/ContentView.swift`: document window content
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
@@ -128,6 +133,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `Mark/DiagnosticsReport.swift`: privacy-preserving support report generation and export
 - `Mark/DiagramDown.entitlements`: explicit sandbox permissions used by signed builds
 - `Mark/Resources/Preview`: bundled offline preview runtime
+- `Mark/Resources/Formatter`: bundled offline Prettier runtime
 - `Mark/Resources/DiagramDown-Example.md`: editable first-run example document
 - `MarkTests`: native unit tests for core document and preview behavior
 - `Tests/PreviewRuntimeTests.mjs`: offline preview structure and bridge regression tests
@@ -167,4 +173,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 17. Apple Silicon community-release packaging — complete
 18. Tag-driven GitHub Release automation — complete for `0.17.0`
 19. First-run example, Help menu, diagnostics export, and support hardening — complete for `0.19.0`
-20. Notarized distribution and universal Intel support — optional later work
+20. Reliable PDF export, document formatting, and fenced-code highlighting — complete for `0.20.0`
+21. Notarized distribution and universal Intel support — optional later work

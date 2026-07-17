@@ -66,6 +66,7 @@ struct ContentView: View {
     @SceneStorage("DocumentView.mode") private var storedViewMode =
         DocumentViewMode.editorAndPreview.rawValue
     @StateObject private var previewController = PreviewController()
+    @StateObject private var editorController = MarkdownEditorController()
     @State private var editorScrollPosition = ScrollSyncPosition.initial
     @State private var editorScrollTarget = ScrollSyncTarget.initial
 
@@ -142,6 +143,12 @@ struct ContentView: View {
                 ? PreviewExportPDFAction(perform: previewController.exportPDF)
                 : nil
         )
+        .focusedSceneValue(
+            \.formatDocumentAction,
+            activeViewMode == .previewOnly
+                ? nil
+                : FormatDocumentAction(perform: editorController.formatDocument)
+        )
     }
 
     @ViewBuilder
@@ -165,7 +172,8 @@ struct ContentView: View {
         MarkdownEditorView(
             text: $document.text,
             scrollPosition: $editorScrollPosition,
-            scrollTarget: editorScrollTarget
+            scrollTarget: editorScrollTarget,
+            editorController: editorController
         )
     }
 

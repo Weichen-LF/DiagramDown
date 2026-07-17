@@ -46,6 +46,7 @@ enum AppHelp {
         Open…               ⌘O
         Save                ⌘S
         Find                ⌘F
+        Format Document     ⇧⌥F
 
         Zoom In             ⌘+
         Zoom Out            ⌘−

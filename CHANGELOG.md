@@ -10,6 +10,19 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Post-release fixes and usability improvements based on community feedback
 
+## [0.20.0] - 2026-07-17
+
+### Added
+
+- Offline Format Document command using bundled Prettier for Markdown and supported embedded code
+- Official D2 fenced-block formatting through the bundled `d2 fmt` command
+- Offline syntax highlighting for explicitly labeled preview code fences
+- Bundled Prettier and Highlight.js license notices and release validation
+
+### Fixed
+
+- Full-document PDF export now uses WebKit PDF data, validates it, and paginates it without the blank `WKPrintingView` path
+
 ## [0.19.0] - 2026-07-17
 
 ### Added

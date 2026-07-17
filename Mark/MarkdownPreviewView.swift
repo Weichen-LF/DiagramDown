@@ -468,29 +468,49 @@ struct MarkdownPreviewView: NSViewRepresentable {
         }
 
         private func exportPDF(from webView: WKWebView, to url: URL) {
-            let printInfo = (NSPrintInfo.shared.copy() as? NSPrintInfo) ?? NSPrintInfo()
-            printInfo.jobDisposition = .save
-            printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url
-            printInfo.horizontalPagination = .fit
-            printInfo.verticalPagination = .automatic
-            printInfo.isHorizontallyCentered = true
-            printInfo.topMargin = 36
-            printInfo.bottomMargin = 36
-            printInfo.leftMargin = 36
-            printInfo.rightMargin = 36
+            Task { [weak self, weak webView] in
+                guard let self, let webView else {
+                    self?.pdfExportInProgress = false
+                    return
+                }
 
-            let operation = webView.printOperation(with: printInfo)
-            operation.showsPrintPanel = false
-            operation.showsProgressPanel = true
-            let succeeded = operation.run()
-            pdfExportInProgress = false
+                do {
+                    let result = try await webView.callAsyncJavaScript(
+                        "return await window.previewRuntime.beginPDFExport();",
+                        arguments: [:],
+                        in: nil,
+                        contentWorld: .page
+                    )
+                    guard let dimensions = result as? [String: Any],
+                          let width = dimensions["width"] as? Double,
+                          let height = dimensions["height"] as? Double,
+                          width > 0,
+                          height > 0 else {
+                        throw PDFExportError.invalidDocumentDimensions
+                    }
 
-            if !succeeded || !FileManager.default.fileExists(atPath: url.path) {
-                showAlert(
-                    title: "PDF Export Failed",
-                    message: "The Markdown preview could not be written as a PDF."
-                )
+                    let configuration = WKPDFConfiguration()
+                    configuration.rect = CGRect(x: 0, y: 0, width: width, height: height)
+                    let webPDF = try await webView.pdf(configuration: configuration)
+                    let paginatedPDF = try PDFExportService.paginate(webPDF)
+                    try paginatedPDF.write(to: url, options: .atomic)
+                    await finishPDFExport(in: webView)
+                    pdfExportInProgress = false
+                } catch {
+                    await finishPDFExport(in: webView)
+                    pdfExportInProgress = false
+                    showExportError("The Markdown preview could not be written as a PDF.", error: error)
+                }
             }
+        }
+
+        private func finishPDFExport(in webView: WKWebView) async {
+            _ = try? await webView.callAsyncJavaScript(
+                "window.previewRuntime.finishPDFExport();",
+                arguments: [:],
+                in: nil,
+                contentWorld: .page
+            )
         }
 
         private func presentSavePanel(

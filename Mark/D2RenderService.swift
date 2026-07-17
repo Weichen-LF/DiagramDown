@@ -132,6 +132,118 @@ actor D2RenderService {
         overrideCacheDirectoryURL = cacheDirectoryURL
     }
 
+    func formatFencedBlocks(in markdown: String) async throws -> String {
+        let expression = try NSRegularExpression(
+            pattern: #"(?ms)^ {0,3}(`{3,}|~{3,})[ \t]*d2(?:[ \t][^\r\n]*)?\r?\n(.*?)^ {0,3}\1[ \t]*(?=\r?\n|$)"#,
+            options: [.caseInsensitive]
+        )
+        let source = markdown as NSString
+        let matches = expression.matches(
+            in: markdown,
+            range: NSRange(location: 0, length: source.length)
+        )
+        guard !matches.isEmpty else {
+            return markdown
+        }
+
+        var replacements: [(range: NSRange, source: String)] = []
+        for match in matches {
+            let contentRange = match.range(at: 2)
+            let d2Source = source.substring(with: contentRange)
+            let formatted = try await formatSource(d2Source)
+            replacements.append((contentRange, formatted))
+        }
+
+        let result = NSMutableString(string: markdown)
+        for replacement in replacements.reversed() {
+            result.replaceCharacters(in: replacement.range, with: replacement.source)
+        }
+        return result as String
+    }
+
+    private func formatSource(_ source: String) async throws -> String {
+        try Task.checkCancellation()
+        guard source.utf8.count <= Self.maximumInputBytes else {
+            throw D2RenderError.inputTooLarge
+        }
+        guard let executableURL = overrideExecutableURL ?? Self.executableURL,
+              FileManager.default.isExecutableFile(atPath: executableURL.path) else {
+            throw D2RenderError.executableMissing
+        }
+
+        let jobID = UUID()
+        let directory = try makeTemporaryDirectory(jobID: jobID)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inputURL = directory.appendingPathComponent("input.d2")
+        try source.write(to: inputURL, atomically: true, encoding: .utf8)
+
+        let process = Process()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        let stdoutCollector = PipeCollector(
+            fileHandle: stdoutPipe.fileHandleForReading,
+            maximumBytes: Self.maximumDiagnosticBytes
+        )
+        let stderrCollector = PipeCollector(
+            fileHandle: stderrPipe.fileHandleForReading,
+            maximumBytes: Self.maximumDiagnosticBytes
+        )
+        process.executableURL = executableURL
+        process.currentDirectoryURL = directory
+        process.arguments = ["fmt", inputURL.path]
+        process.environment = restrictedEnvironment(temporaryDirectory: directory)
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        runningProcesses[jobID] = process
+
+        let timeoutTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(6))
+            } catch {
+                return
+            }
+            await self?.timeOut(jobID: jobID)
+        }
+        defer {
+            timeoutTask.cancel()
+            runningProcesses.removeValue(forKey: jobID)
+            cancelledJobs.remove(jobID)
+            timedOutJobs.remove(jobID)
+        }
+
+        let exitCode: Int32
+        do {
+            exitCode = try await withTaskCancellationHandler {
+                try Task.checkCancellation()
+                return try await runAndWait(process)
+            } onCancel: {
+                Task { await self.cancel(jobID: jobID) }
+            }
+        } catch is CancellationError {
+            throw D2RenderError.cancelled
+        } catch let error as D2RenderError {
+            throw error
+        } catch {
+            throw D2RenderError.processLaunchFailed(error.localizedDescription)
+        }
+
+        let stdout = diagnosticString(from: stdoutCollector.finish())
+        let stderr = diagnosticString(from: stderrCollector.finish())
+        if timedOutJobs.contains(jobID) {
+            throw D2RenderError.timedOut
+        }
+        if cancelledJobs.contains(jobID) || Task.isCancelled {
+            throw D2RenderError.cancelled
+        }
+        guard exitCode == 0 else {
+            throw D2RenderError.processFailed(
+                exitCode: exitCode,
+                message: stderr.isEmpty ? stdout : stderr
+            )
+        }
+        return try String(contentsOf: inputURL, encoding: .utf8)
+    }
+
     func render(
         source: String,
         configuration: D2RenderConfiguration = .preview

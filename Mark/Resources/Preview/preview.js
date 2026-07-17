@@ -1,11 +1,43 @@
 const preview = document.getElementById("preview");
 const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
 const mermaid = window.mermaid;
+const highlight = window.hljs;
+const highlightAliases = new Map([
+  ["c++", "cpp"],
+  ["cs", "csharp"],
+  ["html", "xml"],
+  ["js", "javascript"],
+  ["jsx", "javascript"],
+  ["md", "markdown"],
+  ["py", "python"],
+  ["rb", "ruby"],
+  ["sh", "bash"],
+  ["shell", "bash"],
+  ["ts", "typescript"],
+  ["tsx", "typescript"],
+  ["yml", "yaml"],
+]);
 const markdown = window.markdownit({
   breaks: false,
   html: false,
   linkify: true,
   typographer: false,
+  highlight(source, language) {
+    const requestedLanguage = String(language || "").trim().toLowerCase();
+    const resolvedLanguage = highlightAliases.get(requestedLanguage) || requestedLanguage;
+    if (!resolvedLanguage || !highlight?.getLanguage(resolvedLanguage)) {
+      return "";
+    }
+
+    try {
+      return highlight.highlight(source, {
+        language: resolvedLanguage,
+        ignoreIllegals: true,
+      }).value;
+    } catch {
+      return "";
+    }
+  },
 });
 const defaultFenceRenderer = markdown.renderer.rules.fence;
 
@@ -775,6 +807,24 @@ async function prepareForPDFExport() {
   };
 }
 
+async function beginPDFExport() {
+  document.documentElement.classList.add("pdf-exporting");
+  await document.fonts?.ready;
+  await waitForAnimationFrame();
+  await waitForAnimationFrame();
+
+  const root = document.documentElement;
+  const body = document.body;
+  return {
+    width: Math.max(root.scrollWidth, body.scrollWidth, root.clientWidth, 1),
+    height: Math.max(root.scrollHeight, body.scrollHeight, root.clientHeight, 1),
+  };
+}
+
+function finishPDFExport() {
+  document.documentElement.classList.remove("pdf-exporting");
+}
+
 function restoreScrollRatio(scroller, ratio) {
   suppressPreviewScrollMessages = true;
   requestAnimationFrame(() => {
@@ -1106,6 +1156,8 @@ window.addEventListener("scroll", () => {
 window.previewRuntime = Object.freeze({
   applyD2Error,
   applyD2Result,
+  beginPDFExport,
+  finishPDFExport,
   prepareForPDFExport,
   renderMarkdown,
   scrollToSourceLine,

@@ -78,8 +78,12 @@ d2_executable="$app_path/Contents/Helpers/d2"
 [[ -x "$main_executable" ]] || fail "Missing main executable: $main_executable"
 [[ -x "$d2_executable" ]] || fail "Missing D2 helper: $d2_executable"
 
-for license_name in LICENSE MarkdownIt-LICENSE.txt Mermaid-LICENSE.txt D2-LICENSE.txt; do
+for license_name in LICENSE MarkdownIt-LICENSE.txt Mermaid-LICENSE.txt D2-LICENSE.txt HighlightJS-LICENSE.txt Prettier-LICENSE.txt Prettier-THIRD-PARTY-NOTICES.txt; do
   [[ -f "$app_path/Contents/Resources/$license_name" ]] || fail "Missing bundled license: $license_name"
+done
+
+for runtime_name in formatter.html formatter.js prettier.js markdown.js highlight.min.js; do
+  [[ -f "$app_path/Contents/Resources/$runtime_name" ]] || fail "Missing bundled runtime asset: $runtime_name"
 done
 
 example_document="$app_path/Contents/Resources/DiagramDown-Example.md"
