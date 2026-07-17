@@ -11,7 +11,7 @@ The name combines the product's two core ideas: diagrams and Markdown.
 
 ## Current status
 
-Version `0.17.0` is the first public Apple Silicon community release:
+Version `0.19.0` improves first-run guidance and support diagnostics for the Apple Silicon community release:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -47,6 +47,11 @@ Version `0.17.0` is the first public Apple Silicon community release:
 - Automated arm64 archive, Developer ID export, ZIP packaging, notarization, and ticket stapling
 - Release validation for nested signatures, Hardened Runtime, sandbox entitlements, architectures, licenses, and Gatekeeper
 - MIT license bundled with packaged builds
+- Bundled editable example covering Markdown, Mermaid, D2, focused diagrams, and PDF export
+- Help menu links for keyboard shortcuts, documentation, feedback, and release notes
+- Empty-editor guidance for discovering the example document
+- Privacy-preserving diagnostics export that excludes document content, names, paths, and personal identifiers
+- Sanitized environment, preference, D2 helper, and cache summaries for actionable issue reports
 
 The first public release supports Apple Silicon Macs only. Intel support and a universal D2 helper are deferred.
 
@@ -119,8 +124,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and two-level cache
 - `Mark/PreviewSettingsView.swift`: persistent appearance and preview preferences
 - `Mark/PreviewCommands.swift`: preview zoom and PDF export commands
+- `Mark/AppCommands.swift`: example-document and Help menu commands
+- `Mark/DiagnosticsReport.swift`: privacy-preserving support report generation and export
 - `Mark/DiagramDown.entitlements`: explicit sandbox permissions used by signed builds
 - `Mark/Resources/Preview`: bundled offline preview runtime
+- `Mark/Resources/DiagramDown-Example.md`: editable first-run example document
 - `MarkTests`: native unit tests for core document and preview behavior
 - `Tests/PreviewRuntimeTests.mjs`: offline preview structure and bridge regression tests
 - `Scripts/test.sh`: complete local test entry point
@@ -158,4 +166,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 16. Automated tests, release validation, and MIT licensing — complete
 17. Apple Silicon community-release packaging — complete
 18. Tag-driven GitHub Release automation — complete for `0.17.0`
-19. Notarized distribution and universal Intel support — optional later work
+19. First-run example, Help menu, diagnostics export, and support hardening — complete for `0.19.0`
+20. Notarized distribution and universal Intel support — optional later work

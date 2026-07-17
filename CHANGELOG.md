@@ -10,6 +10,17 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Post-release fixes and usability improvements based on community feedback
 
+## [0.19.0] - 2026-07-17
+
+### Added
+
+- A bundled, editable example document covering Markdown, Mermaid, D2, focused diagrams, and PDF export
+- Help menu actions for the example document, keyboard shortcuts, project page, issue reporting, and release notes
+- Lightweight guidance inside an empty editor that points new users to the example document
+- Release validation that confirms the example document and both diagram samples are present in the packaged application
+- Privacy-preserving diagnostics export with application, macOS, architecture, locale, preview settings, D2 helper, and cache summaries
+- Automated diagnostics tests covering preference sanitization, path and content exclusion, and cache statistics
+
 ## [0.17.0] - 2026-07-17
 
 ### Added

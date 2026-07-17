@@ -60,7 +60,34 @@ final class LineNumberTextView: NSTextView {
 
         graphicsContext.cgContext.resetClip()
         graphicsContext.cgContext.clip(to: bounds)
+        drawPlaceholderIfNeeded(in: visibleRect)
         drawLineNumbers(in: visibleRect)
+    }
+
+    private func drawPlaceholderIfNeeded(in visibleRect: NSRect) {
+        guard string.isEmpty else {
+            return
+        }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font ?? NSFont.monospacedSystemFont(ofSize: 14, weight: .regular),
+            .foregroundColor: NSColor.placeholderTextColor,
+        ]
+        let origin = NSPoint(
+            x: textContainerOrigin.x,
+            y: textContainerOrigin.y
+        )
+        let availableWidth = max(bounds.width - origin.x - horizontalContentInset, 0)
+        let placeholderRect = NSRect(
+            x: origin.x,
+            y: origin.y,
+            width: availableWidth,
+            height: font?.lineHeight ?? numberFont.lineHeight
+        )
+        guard placeholderRect.intersects(visibleRect) else {
+            return
+        }
+        EditorGuidance.placeholder.draw(in: placeholderRect, withAttributes: attributes)
     }
 
     private func drawLineNumbers(in visibleRect: NSRect) {
