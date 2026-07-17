@@ -52,4 +52,6 @@ Changes to Mermaid, markdown-it, or D2 must update the bundled artifact, version
 
 ## Pull requests
 
+The `main` branch is protected. Submit changes through a pull request, keep the branch current with `main`, and wait for the required `Test and build` check to pass. The repository uses squash merges and automatically removes merged branches.
+
 Use a short descriptive branch name and explain the rationale, main changes, and validation performed. Keep unrelated refactors out of feature and bug-fix pull requests.

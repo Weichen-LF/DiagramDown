@@ -1,5 +1,7 @@
 # DiagramDown
 
+[![CI](https://github.com/Weichen-LF/DiagramDown/actions/workflows/ci.yml/badge.svg)](https://github.com/Weichen-LF/DiagramDown/actions/workflows/ci.yml)
+
 ![DiagramDown app icon](Mark/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png)
 
 DiagramDown is a native macOS Markdown editor designed for documents that mix prose and diagrams. The long-term goal is an offline editor with live Markdown preview plus first-class Mermaid and D2 fenced code blocks.
@@ -94,7 +96,7 @@ The result is not notarized and must not be published as an official release. Th
 
 Add `--notary-profile PROFILE_NAME` to submit with credentials already stored in the macOS Keychain. See `docs/release.md` for private-beta limitations, checksum verification, certificate setup, notarization, and final smoke-test guidance.
 
-DiagramDown is licensed under the [MIT License](LICENSE). The repository may remain private while early development and testing continue.
+DiagramDown is open source under the [MIT License](LICENSE). Prebuilt, notarized binaries have not been released yet; the current packaging path is intended only for trusted private beta testing.
 
 ## Contributing and security
 

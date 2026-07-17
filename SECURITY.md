@@ -8,13 +8,11 @@ DiagramDown has not published its first supported binary release yet. Security f
 
 Do not include vulnerability details, exploit code, credentials, or private documents in a regular issue.
 
-The repository is currently private, and GitHub's private vulnerability reporting feature is only available to public repositories. If you already collaborate on this private repository, open an issue containing only the title “Security report request” and ask the maintainer to establish a private channel. Maintainers should transfer the report into a private draft repository security advisory before investigation.
-
-When the repository becomes public, private vulnerability reporting will be enabled and this policy will link directly to the **Report a vulnerability** form.
+Use GitHub's private [Report a vulnerability](https://github.com/Weichen-LF/DiagramDown/security/advisories/new) form. It creates a private security advisory that is visible only to the reporter and repository maintainers while the report is investigated.
 
 Include affected versions or commits, reproduction steps, expected impact, and a minimal proof of concept when safe. Remove credentials, private documents, signing material, and unrelated personal data.
 
-The maintainer will acknowledge the report through the agreed private channel, investigate it, and coordinate disclosure after a fix is available. Please avoid public disclosure while remediation is in progress.
+The maintainer will acknowledge the report in the private advisory, investigate it, and coordinate disclosure after a fix is available. Please avoid public disclosure while remediation is in progress.
 
 ## Security boundaries
 
