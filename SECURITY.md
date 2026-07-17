@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-DiagramDown has not published its first supported binary release yet. Security fixes are currently made on the latest `main` branch and will be included in the next release candidate.
+DiagramDown `0.17.x` and the latest `main` branch are supported. Security fixes are released as patch versions when they affect the public community build.
 
 ## Reporting a vulnerability
 

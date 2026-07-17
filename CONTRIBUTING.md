@@ -35,6 +35,14 @@ xcodebuild \
   build
 ```
 
+Changes to the public packaging path should additionally run:
+
+```sh
+./Scripts/package-release.sh --allow-dirty
+```
+
+The packaged application is ad-hoc signed and not notarized. Any release-facing documentation must preserve the Gatekeeper warning and checksum instructions.
+
 Manually verify visible behavior when changing editor layout, scrolling, themes, diagram rendering, zoom, or export.
 
 ## Change guidelines
@@ -48,7 +56,7 @@ Manually verify visible behavior when changing editor layout, scrolling, themes,
 
 ## Bundled dependencies
 
-Changes to Mermaid, markdown-it, or D2 must update the bundled artifact, version documentation, provenance or checksum, and corresponding license notice together. The first beta intentionally ships the D2 helper as arm64; universal distribution is later work.
+Changes to Mermaid, markdown-it, or D2 must update the bundled artifact, version documentation, provenance or checksum, and corresponding license notice together. The first public release intentionally ships the D2 helper as arm64; universal distribution is later work.
 
 ## Pull requests
 

@@ -7,11 +7,11 @@
 
 DiagramDown is a native macOS Markdown editor designed for documents that mix prose and diagrams. The long-term goal is an offline editor with live Markdown preview plus first-class Mermaid and D2 fenced code blocks.
 
-The name combines the product's two core ideas: diagrams and Markdown. It is a working product name and can still change before the first public release.
+The name combines the product's two core ideas: diagrams and Markdown.
 
 ## Current status
 
-Version `0.16.0` adds a repeatable release foundation for the Apple Silicon build:
+Version `0.17.0` is the first public Apple Silicon community release:
 
 - Create, open, edit, and save `.md` and `.markdown` files
 - Native `NSTextView` editing with macOS input methods
@@ -48,7 +48,7 @@ Version `0.16.0` adds a repeatable release foundation for the Apple Silicon buil
 - Release validation for nested signatures, Hardened Runtime, sandbox entitlements, architectures, licenses, and Gatekeeper
 - MIT license bundled with packaged builds
 
-The first beta supports Apple Silicon Macs only. Intel support and a universal D2 helper are deferred until after the initial beta.
+The first public release supports Apple Silicon Macs only. Intel support and a universal D2 helper are deferred.
 
 ## Requirements
 
@@ -81,23 +81,28 @@ Run the complete Swift and preview-runtime test suite:
 
 The Swift tests can also be run from Xcode with the `Mark` scheme.
 
-## Private beta and release
+## Download
 
-Without a paid Apple Developer account, create an Apple Silicon private-test package with local ad-hoc signatures:
+Download the latest ZIP and matching SHA-256 checksum from [GitHub Releases](https://github.com/Weichen-LF/DiagramDown/releases/latest).
+
+> [!IMPORTANT]
+> The current Apple Silicon build is ad-hoc signed and is not notarized by Apple. macOS Gatekeeper may block its first launch. Verify the checksum and repository source, then use Finder's **Open** command or **Open Anyway** in System Settings > Privacy & Security. Never disable Gatekeeper globally.
+
+To build the same public community-release package locally:
 
 ```sh
-./Scripts/package-private-beta.sh
+./Scripts/package-release.sh
 ```
 
-The result is not notarized and must not be published as an official release. The separate Developer ID workflow remains available for use after developer-program enrollment:
+The script runs the automated suite, creates an arm64 Release build with ad-hoc signatures, validates the application and bundled D2 helper, and writes a ZIP plus SHA-256 checksum under `artifacts/`. See [the release guide](docs/release.md) for verification and first-launch instructions.
+
+An optional Developer ID packaging path remains available for a future notarized distribution:
 
 ```sh
 ./Scripts/release.sh
 ```
 
-Add `--notary-profile PROFILE_NAME` to submit with credentials already stored in the macOS Keychain. See `docs/release.md` for private-beta limitations, checksum verification, certificate setup, notarization, and final smoke-test guidance.
-
-DiagramDown is open source under the [MIT License](LICENSE). Prebuilt, notarized binaries have not been released yet; the current packaging path is intended only for trusted private beta testing.
+DiagramDown is open source under the [MIT License](LICENSE).
 
 ## Contributing and security
 
@@ -119,16 +124,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `MarkTests`: native unit tests for core document and preview behavior
 - `Tests/PreviewRuntimeTests.mjs`: offline preview structure and bridge regression tests
 - `Scripts/test.sh`: complete local test entry point
-- `Scripts/package-private-beta.sh`: ad-hoc signed Apple Silicon test packaging and checksum generation
+- `Scripts/package-release.sh`: ad-hoc signed Apple Silicon community-release packaging and checksum generation
+- `Scripts/package-private-beta.sh`: compatibility wrapper for the community-release packager
 - `Scripts/release.sh`: Developer ID archive, export, packaging, and optional notarization
 - `Scripts/validate-release.sh`: architecture, signature, entitlement, license, and Gatekeeper checks
 - `Config/ExportOptions-DeveloperID.plist`: reproducible Developer ID export configuration
 - `Helpers/d2`: sandbox-inheriting D2 arm64 helper
 - `docs/examples/mermaid.md`: Mermaid rendering smoke-test document
 - `docs/examples/d2.md`: D2 rendering smoke-test document
+- `docs/examples/all-features.md`: combined release smoke-test document
 - `docs/swiftui-markdown-mermaid-d2-design.md`: architecture and phased implementation plan
-- `docs/product-identity.md`: working name, icon, and visual identity notes
+- `docs/product-identity.md`: product name, icon, and visual identity notes
 - `docs/release.md`: signing, notarization, and release runbook
+- `docs/release-checklist.md`: tag, package, GitHub Release, and verification checklist
 
 ## Roadmap
 
@@ -147,7 +155,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 13. Document view modes and focused diagram zoom — complete
 14. Trackpad pinch zoom across preview surfaces — complete
 15. Stability and automated testing — complete for the first suite
-16. Signing, notarization, and release preparation — complete for the arm64 Developer ID workflow
-17. Apple Silicon private-beta packaging and MIT licensing — complete
-18. Developer ID notarization and first public release — deferred until developer-program enrollment
-19. Universal D2 helper and Intel support — later; not required for the first beta
+16. Automated tests, release validation, and MIT licensing — complete
+17. Apple Silicon community-release packaging — complete
+18. Tag-driven GitHub Release automation — complete for `0.17.0`
+19. Notarized distribution and universal Intel support — optional later work

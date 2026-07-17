@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Package and publish
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Verify tag and main ancestry
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git fetch origin main --no-tags
+          tagged_commit="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
+          git merge-base --is-ancestor "$tagged_commit" origin/main
+          test -f "docs/releases/$version.md"
+
+      - name: Build and validate release package
+        id: package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ./Scripts/package-release.sh --expected-version "$version"
+
+      - name: Publish GitHub release
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "${{ steps.package.outputs.zip_path }}" \
+            "${{ steps.package.outputs.checksum_path }}" \
+            --verify-tag \
+            --title "DiagramDown $version" \
+            --notes-file "docs/releases/$version.md"

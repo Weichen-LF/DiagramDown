@@ -6,23 +6,28 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Planned
+
+- Post-release fixes and usability improvements based on community feedback
+
+## [0.17.0] - 2026-07-17
+
 ### Added
 
 - GitHub Actions CI for automated tests and an unsigned arm64 Release build
+- Tag-driven GitHub Release automation for the Apple Silicon community build
 - Dependabot updates for pinned GitHub Actions
 - Contribution, security, issue, and pull-request guidance for repository collaboration
 - MIT project license
-- Apple Silicon private-beta packaging with ad-hoc signature validation and a SHA-256 checksum
+- Apple Silicon community-release packaging with ad-hoc signature validation and a SHA-256 checksum
+- A combined Markdown, Mermaid, and D2 release smoke-test document
+- Public release notes and a reproducible release checklist
 
 ### Changed
 
-- The first beta is explicitly Apple Silicon-only; a universal D2 helper and Intel support are deferred
-- Developer ID notarization remains the official public-release path after Apple Developer Program enrollment
-
-### Planned
-
-- Private Apple Silicon beta testing
-- Developer ID notarization and first public release
+- The first public release is explicitly Apple Silicon-only; a universal D2 helper and Intel support are deferred
+- The public binary is distributed as an ad-hoc signed, unnotarized community release with prominent Gatekeeper instructions
+- Developer ID notarization is an optional future distribution improvement rather than a blocker for the first release
 
 ## [0.16.0] - 2026-07-16
 

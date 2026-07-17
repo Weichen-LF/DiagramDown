@@ -15,6 +15,10 @@ fi
 
 cd "$repository_root"
 
+for script in Scripts/*.sh; do
+  zsh -n "$script"
+done
+
 node --check Mark/Resources/Preview/preview.js
 node --test Tests/PreviewRuntimeTests.mjs
 

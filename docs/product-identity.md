@@ -1,10 +1,10 @@
 # DiagramDown product identity
 
-## Working name
+## Product name
 
 **DiagramDown** combines the two defining parts of the product: diagrams and Markdown. It is descriptive enough for an early release while still feeling like a product name rather than a feature label.
 
-This is a working name. Before a public release, repeat App Store, domain, and trademark checks in the intended distribution regions.
+DiagramDown is the name used by the public community release. The project does not claim exclusive trademark rights; distribution in additional stores or regions should repeat the relevant name and trademark checks.
 
 ## App icon
 

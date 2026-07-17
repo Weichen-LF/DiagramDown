@@ -13,7 +13,7 @@ body:
     attributes:
       label: DiagramDown version
       description: Find this in the application version information or release filename.
-      placeholder: 0.16.0 (16)
+      placeholder: 0.17.0 (17)
     validations:
       required: true
 

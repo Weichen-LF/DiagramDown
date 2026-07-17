@@ -1,106 +1,85 @@
 # DiagramDown release process
 
-The first DiagramDown beta supports Apple Silicon only. Both the application and bundled D2 0.7.1 helper are built as arm64, and release validation intentionally rejects mixed or unexpected architectures.
+DiagramDown's public `0.17.x` release supports Apple Silicon only. Both the application and bundled D2 0.7.1 helper are arm64, and release validation rejects mixed or unexpected architectures.
 
-The repository currently provides two separate packaging paths:
+The default distribution is a reproducible community release that does not require an Apple Developer account. It is ad-hoc signed and is not notarized by Apple. Every download page must state this limitation prominently.
 
-- a temporary, ad-hoc signed private-beta build that does not require a paid Apple Developer account
-- the official Developer ID and notarization flow to use after joining the Apple Developer Program
-
-Neither script publishes a GitHub release or changes repository visibility.
-
-## Private beta without a paid developer account
+## Public Apple Silicon community release
 
 Prerequisites:
 
 - an Apple Silicon Mac
 - Xcode with the macOS 15 SDK or later
-- Node.js 18 or later for the preview-runtime tests
+- Node.js 18 or later
 - a clean Git worktree
 
-Create the private test package:
+Create the public release package:
 
 ```sh
-./Scripts/package-private-beta.sh
+./Scripts/package-release.sh
 ```
 
-The script runs all tests, creates an arm64 Release build with local ad-hoc signatures, validates its architectures, signatures, Hardened Runtime, sandbox entitlements, and bundled project and third-party license texts, then writes these files under `artifacts/`:
+The script:
 
-- `DiagramDown.app`
-- `DiagramDown-<version>-<build>-arm64-private-beta.zip`
-- a matching `.sha256` checksum file
+1. runs the complete automated test suite
+2. creates an arm64 Release build with local ad-hoc signatures
+3. validates the application and D2 architectures, signatures, Hardened Runtime, sandbox entitlements, and bundled licenses
+4. creates `DiagramDown-<version>-arm64.zip`
+5. writes a matching `.sha256` checksum
 
-Verify the ZIP after copying both files to another directory:
+Artifacts are written under `artifacts/`. `--skip-tests` is allowed only when the exact commit already passed `./Scripts/test.sh`; `--allow-dirty` is for deliberate local diagnostics and must not be used for a published build.
+
+The deprecated `package-private-beta.sh` command remains as a compatibility wrapper.
+
+## Verify a download
+
+Download the ZIP and checksum file into the same directory, then run:
 
 ```sh
-shasum -a 256 -c DiagramDown-0.16.0-16-arm64-private-beta.zip.sha256
+shasum -a 256 -c DiagramDown-0.17.0-arm64.zip.sha256
 ```
 
-The exact filename changes with the application version and build number.
+The result must report `OK`. A checksum proves that the file matches the release asset; it does not provide Apple notarization or identity verification.
 
-### Private-beta limitations
+## First launch and Gatekeeper
 
-The package is ad-hoc signed and not notarized. It is suitable only for deliberate testing by people who trust the sender; it is not an official public release. macOS Gatekeeper may block the first launch on another Mac. A tester can use Finder's **Open** command or the **Open Anyway** control in System Settings > Privacy & Security after confirming the checksum and source. Do not disable Gatekeeper globally.
+The community build is ad-hoc signed and not notarized. macOS Gatekeeper may block the first launch after downloading it from the internet.
 
-Use `--skip-tests` only when the exact commit has already passed `./Scripts/test.sh`. Use `--allow-dirty` only for deliberate local diagnostics. `BUILD_NUMBER=17 ./Scripts/package-private-beta.sh` overrides the project build number without editing the project.
+After verifying the checksum and repository source:
 
-## Official Developer ID release (deferred)
+1. unzip the archive
+2. drag `DiagramDown.app` to Applications if desired
+3. Control-click or right-click the application and choose **Open**
+4. if macOS still blocks it, use **Open Anyway** in System Settings > Privacy & Security
 
-This path requires:
+Never disable Gatekeeper globally. Users who require an Apple-notarized application should build from source or wait for a future notarized distribution.
 
-- Apple Developer Program membership for team `QM6DZQY23F`
-- a valid `Developer ID Application` certificate in the login keychain
-- notarization credentials stored in the macOS Keychain
+## Tag-driven GitHub Release
 
-Confirm that the signing identity is available:
+Pushing a semantic-version tag such as `v0.17.0` starts `.github/workflows/release.yml`. The workflow requires the tagged commit to be reachable from `main`, requires matching release notes under `docs/releases/`, reruns all tests, builds and validates the package, and creates a GitHub Release with the ZIP and checksum.
 
-```sh
-security find-identity -v -p codesigning
-```
-
-Store notarization credentials once. Do not put an Apple ID password, app-specific password, API private key, or profile contents in this repository.
-
-```sh
-xcrun notarytool store-credentials DiagramDown-notary \
-  --apple-id "APPLE_ID" \
-  --team-id QM6DZQY23F
-```
-
-`notarytool` securely prompts for the app-specific password when it is omitted. App Store Connect API key credentials can be stored instead; see `xcrun notarytool help store-credentials`.
-
-Build and inspect a Developer ID package without notarizing:
-
-```sh
-./Scripts/release.sh
-```
-
-Build, submit for notarization, staple the ticket, and run Gatekeeper validation:
-
-```sh
-./Scripts/release.sh --notary-profile DiagramDown-notary
-```
-
-The script creates a ZIP but does not upload it. Do not publish an unstapled or unnotarized artifact as the official release.
+Follow [release-checklist.md](release-checklist.md) before pushing a tag. A tag is the publication action; do not push a release tag until its preparation pull request is merged and `main` is green.
 
 ## Validate an existing application
 
 ```sh
 ./Scripts/validate-release.sh /path/to/DiagramDown.app --adhoc
-./Scripts/validate-release.sh /path/to/DiagramDown.app --distribution
-./Scripts/validate-release.sh /path/to/DiagramDown.app --notarized
 ```
 
 Validation covers:
 
 - bundle identifier and version metadata
-- arm64 architecture of both the application and bundled D2 helper
+- arm64 architecture of the application and bundled D2 helper
 - strict nested-code signature validation
 - Hardened Runtime on both executables
 - application sandbox and inherited helper sandbox entitlements
-- exact ad-hoc signature status when requested
-- absence of the `get-task-allow` debugging entitlement in distribution builds
+- exact ad-hoc signature status
 - bundled project and third-party license texts
-- Developer ID identity and team when requested
-- stapled notarization ticket and Gatekeeper acceptance when requested
 
-Before an official public release, install the final notarized ZIP on a separate Apple Silicon Mac and verify document opening, Markdown preview, Mermaid rendering, D2 rendering, PDF export, and SVG export under normal Gatekeeper launch behavior.
+## Optional future notarized distribution
+
+The existing `Scripts/release.sh` and `Config/ExportOptions-DeveloperID.plist` remain available for a future Developer ID, notarization, and staple workflow. This path is not required for the `0.17.x` community release and does not change the current public packaging process.
+
+## Manual application checks
+
+The release pipeline intentionally performs command-line and automated validation only. It does not control the macOS interface. The combined document at `docs/examples/all-features.md` can be used for later manual checks of editing, preview rendering, layout modes, scroll synchronization, diagram zoom, and export.
