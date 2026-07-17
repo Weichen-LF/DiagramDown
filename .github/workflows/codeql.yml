@@ -24,21 +24,14 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - language: actions
-            build_mode: none
-            runner: ubuntu-latest
-          - language: javascript-typescript
-            build_mode: none
-            runner: ubuntu-latest
-          - language: swift
-            build_mode: manual
-            runner: macos-15
+        language:
+          - actions
+          - javascript-typescript
 
     steps:
       - name: Check out source
@@ -48,10 +41,30 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build_mode }}
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  analyze-swift:
+    name: Analyze (swift)
+    if: github.event_name != 'pull_request'
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: swift
+          build-mode: manual
 
       - name: Build Swift application
-        if: matrix.language == 'swift'
         env:
           DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
         run: |
@@ -71,4 +84,4 @@ jobs:
       - name: Analyze
         uses: github/codeql-action/analyze@v4
         with:
-          category: /language:${{ matrix.language }}
+          category: /language:swift
