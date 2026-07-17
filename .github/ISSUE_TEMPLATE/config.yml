@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security reporting instructions
-    url: https://github.com/Weichen-LF/DiagramDown/blob/main/SECURITY.md
-    about: Read the private reporting guidance before sharing security-sensitive details.
+    url: https://github.com/Weichen-LF/DiagramDown/security/advisories/new
+    about: Report vulnerabilities privately; do not include security-sensitive details in an issue.
