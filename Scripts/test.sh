@@ -20,7 +20,8 @@ for script in Scripts/*.sh; do
 done
 
 node --check Mark/Resources/Preview/preview.js
-node --test Tests/PreviewRuntimeTests.mjs
+node --check Mark/Resources/Formatter/formatter.js
+node --test Tests/PreviewRuntimeTests.mjs Tests/FormatterRuntimeTests.mjs
 
 xcodebuild \
   -project Mark.xcodeproj \

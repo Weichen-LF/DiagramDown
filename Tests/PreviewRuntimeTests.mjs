@@ -13,6 +13,10 @@ const nativeBridge = await readFile(
   path.join(repositoryRoot, "Mark/MarkdownPreviewView.swift"),
   "utf8",
 );
+const pdfService = await readFile(
+  path.join(repositoryRoot, "Mark/PDFExportService.swift"),
+  "utf8",
+);
 
 test("preview page keeps every runtime dependency local", async () => {
   const assetReferences = [...html.matchAll(/(?:src|href)="([^"]+)"/gu)]
@@ -21,6 +25,7 @@ test("preview page keeps every runtime dependency local", async () => {
   assert.deepEqual(assetReferences, [
     "preview.css",
     "markdown-it.min.js",
+    "highlight.min.js",
     "mermaid.min.js",
     "preview.js",
   ]);
@@ -66,6 +71,8 @@ test("preview runtime exports the native entry points", () => {
   for (const entryPoint of [
     "applyD2Error",
     "applyD2Result",
+    "beginPDFExport",
+    "finishPDFExport",
     "prepareForPDFExport",
     "renderMarkdown",
     "scrollToSourceLine",
@@ -75,6 +82,23 @@ test("preview runtime exports the native entry points", () => {
       new RegExp(`window\\.previewRuntime[\\s\\S]*\\b${entryPoint}\\b`, "u"),
     );
   }
+});
+
+test("code highlighting is local, explicit, and leaves diagram fences alone", () => {
+  assert.match(html, /<script src="highlight\.min\.js"><\/script>/u);
+  assert.match(javascript, /highlight\?\.getLanguage\(resolvedLanguage\)/u);
+  assert.match(javascript, /ignoreIllegals: true/u);
+  assert.match(javascript, /if \(language === "mermaid"\)/u);
+  assert.match(javascript, /if \(language === "d2"\)/u);
+  assert.match(css, /\.hljs-keyword/u);
+});
+
+test("PDF export uses WebKit PDF data instead of WKPrintingView", () => {
+  assert.match(nativeBridge, /webView\.pdf\(configuration: configuration\)/u);
+  assert.match(pdfService, /CGPDFDocument\(provider\)/u);
+  assert.doesNotMatch(nativeBridge, /printOperation\(with:/u);
+  assert.match(javascript, /classList\.add\("pdf-exporting"\)/u);
+  assert.match(javascript, /classList\.remove\("pdf-exporting"\)/u);
 });
 
 test("diagram viewer controls have matching styles and print exclusions", () => {

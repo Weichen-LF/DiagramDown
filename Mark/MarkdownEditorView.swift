@@ -4,12 +4,23 @@
 //
 
 import AppKit
+import Combine
 import SwiftUI
+
+@MainActor
+final class MarkdownEditorController: ObservableObject {
+    weak var coordinator: MarkdownEditorView.Coordinator?
+
+    func formatDocument() {
+        coordinator?.formatDocument()
+    }
+}
 
 struct MarkdownEditorView: NSViewRepresentable {
     @Binding var text: String
     @Binding var scrollPosition: ScrollSyncPosition
     let scrollTarget: ScrollSyncTarget
+    let editorController: MarkdownEditorController
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, scrollPosition: $scrollPosition)
@@ -59,7 +70,8 @@ struct MarkdownEditorView: NSViewRepresentable {
         scrollView.documentView = textView
         context.coordinator.attach(
             scrollView: scrollView,
-            textView: textView
+            textView: textView,
+            editorController: editorController
         )
         return scrollView
     }
@@ -101,6 +113,7 @@ struct MarkdownEditorView: NSViewRepresentable {
         private var scrollGeneration: UInt64 = 0
         private var appliedTargetGeneration: UInt64 = 0
         private var isApplyingScrollTarget = false
+        private var formatTask: Task<Void, Never>?
         var isApplyingExternalChange = false
 
         init(
@@ -113,11 +126,13 @@ struct MarkdownEditorView: NSViewRepresentable {
 
         func attach(
             scrollView: NSScrollView,
-            textView: LineNumberTextView
+            textView: LineNumberTextView,
+            editorController: MarkdownEditorController
         ) {
             self.scrollView = scrollView
             self.textView = textView
             self.lineNumberTextView = textView
+            editorController.coordinator = self
             scrollView.contentView.postsBoundsChangedNotifications = true
             boundsObserver = NotificationCenter.default.addObserver(
                 forName: NSView.boundsDidChangeNotification,
@@ -141,9 +156,63 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
 
         func invalidate() {
+            formatTask?.cancel()
+            formatTask = nil
             if let boundsObserver {
                 NotificationCenter.default.removeObserver(boundsObserver)
                 self.boundsObserver = nil
+            }
+        }
+
+        func formatDocument() {
+            guard formatTask == nil, let textView else {
+                return
+            }
+
+            let original = textView.string
+            let originalSelection = textView.selectedRange()
+            formatTask = Task { [weak self, weak textView] in
+                guard let self, let textView else {
+                    return
+                }
+                defer { formatTask = nil }
+
+                do {
+                    let formatted = try await MarkdownFormattingService.shared.format(original)
+                    try Task.checkCancellation()
+                    guard textView.string == original else {
+                        throw MarkdownFormattingError.documentChanged
+                    }
+                    guard formatted != original else {
+                        NSSound.beep()
+                        return
+                    }
+
+                    let replacementRange = NSRange(
+                        location: 0,
+                        length: (original as NSString).length
+                    )
+                    textView.breakUndoCoalescing()
+                    textView.insertText(formatted, replacementRange: replacementRange)
+                    textView.setSelectedRange(
+                        originalSelection.clamped(toUTF16Length: formatted.utf16.count)
+                    )
+                    textView.breakUndoCoalescing()
+                } catch is CancellationError {
+                    return
+                } catch {
+                    showFormattingError(error)
+                }
+            }
+        }
+
+        private func showFormattingError(_ error: Error) {
+            let alert = NSAlert(error: error)
+            alert.messageText = "Formatting Failed"
+            if let window = textView?.window {
+                alert.beginSheetModal(for: window)
+            } else {
+                alert.runModal()
             }
         }
 

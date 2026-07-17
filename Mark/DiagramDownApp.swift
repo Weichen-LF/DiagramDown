@@ -18,6 +18,7 @@ struct DiagramDownApp: App {
                 .preferredColorScheme(preferredColorScheme)
         }
         .commands {
+            FormattingCommands()
             PreviewCommands()
             AppCommands()
         }

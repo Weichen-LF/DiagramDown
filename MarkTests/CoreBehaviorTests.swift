@@ -254,6 +254,80 @@ final class D2ConfigurationTests: XCTestCase {
     }
 }
 
+final class D2FormattingTests: XCTestCase {
+    func testOnlyD2FencesUseTheOfficialFormatterCommand() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let formatterURL = directory.appendingPathComponent("d2")
+        let formatter = """
+        #!/bin/sh
+        [ "$1" = "fmt" ] || exit 9
+        printf 'formatted -> d2\n' > "$2"
+        """
+        try formatter.write(to: formatterURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: formatterURL.path
+        )
+
+        let service = D2RenderService(
+            executableURL: formatterURL,
+            cacheDirectoryURL: directory
+        )
+        let markdown = """
+        ```D2
+        a:     b
+        ```
+
+        ```mermaid
+        graph TD
+        A-->B
+        ```
+        """
+        let result = try await service.formatFencedBlocks(in: markdown)
+
+        XCTAssertTrue(result.contains("formatted -> d2"))
+        XCTAssertTrue(result.contains("graph TD\nA-->B"))
+    }
+
+    func testMarkdownWithoutD2DoesNotRequireAFormatterExecutable() async throws {
+        let service = D2RenderService(executableURL: URL(fileURLWithPath: "/missing"))
+        let markdown = "```json\n{\"ok\":true}\n```"
+        let result = try await service.formatFencedBlocks(in: markdown)
+        XCTAssertEqual(result, markdown)
+    }
+}
+
+final class PDFExportServiceTests: XCTestCase {
+    func testPaginationProducesMultipleNonEmptyA4Pages() throws {
+        var sourceBounds = CGRect(x: 0, y: 0, width: 400, height: 1_600)
+        let sourceData = NSMutableData()
+        let consumer = try XCTUnwrap(CGDataConsumer(data: sourceData as CFMutableData))
+        let context = try XCTUnwrap(CGContext(consumer: consumer, mediaBox: &sourceBounds, nil))
+        context.beginPDFPage(nil)
+        context.setFillColor(CGColor(red: 0.2, green: 0.3, blue: 0.9, alpha: 1))
+        context.fill(CGRect(x: 20, y: 20, width: 360, height: 1_560))
+        context.endPDFPage()
+        context.closePDF()
+
+        let result = try PDFExportService.paginate(sourceData as Data)
+        try PDFExportService.validate(result)
+        let provider = try XCTUnwrap(CGDataProvider(data: result as CFData))
+        let document = try XCTUnwrap(CGPDFDocument(provider))
+
+        XCTAssertGreaterThan(document.numberOfPages, 1)
+        XCTAssertGreaterThan(result.count, 1_000)
+        XCTAssertEqual(document.page(at: 1)?.getBoxRect(.mediaBox).width ?? 0, 595.28, accuracy: 0.1)
+    }
+
+    func testInvalidPDFIsRejected() {
+        XCTAssertThrowsError(try PDFExportService.validate(Data("not a pdf".utf8)))
+    }
+}
+
 final class ScrollSyncStateTests: XCTestCase {
     func testInitialPositionIsAtDocumentStart() {
         XCTAssertEqual(ScrollSyncPosition.initial.sourceLine, 1)
