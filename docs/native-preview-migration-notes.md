@@ -42,16 +42,15 @@ Grammar versions are part of the highlighter cache key.
 
 - Node bundled-runtime tests: 6 passed after legacy runtime removal.
 - macOS XCTest: passed after switching completely to the native preview,
-  including a real offline Mermaid render followed by SVG sanitation.
+  including a real offline Mermaid render followed by SVG sanitation, all
+  first-batch Tree-sitter grammars, versioned diagram caches, confined local
+  images, and PDF image snapshots.
 - Debug app resource inspection confirmed the Mermaid runtime, all first-batch
   grammar query bundles, and package licenses are present; no legacy preview
   runtime file is bundled.
-- A later XCTest rerun, after adding the shared diagram disk cache, versioned
-  cache keys, workspace-confined image loading, PDF image snapshots, and
-  expanded grammar assertions, could not be started because the local desktop
-  execution environment rejected another privileged build for quota reasons.
-  Those final additions have static and script validation but need one
-  follow-up Xcode test run when execution is available.
+- The final full `Scripts/test.sh` run passed after fixing XCTest-time
+  Tree-sitter query-bundle discovery. The test suite now verifies that every
+  first-batch grammar loads a highlights query and emits attributed token runs.
 
 ## Follow-up benchmarks
 

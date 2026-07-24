@@ -228,6 +228,29 @@ final class NativePreviewSafetyTests: XCTestCase {
 }
 
 final class NativePreviewHighlightingTests: XCTestCase {
+    func testBundledGrammarDefinitionsLoadHighlightQueries() throws {
+        let registry = TreeSitterLanguageRegistry()
+        for language in [
+            CodeLanguage.bash,
+            .javascript,
+            .json,
+            .lua,
+            .swift,
+            .typescript,
+            .tsx,
+            .yaml,
+        ] {
+            let definition = try XCTUnwrap(
+                registry.definition(for: language),
+                "\(language)"
+            )
+            XCTAssertNotNil(
+                definition.configuration.queries[.highlights],
+                "\(language)"
+            )
+        }
+    }
+
     func testLanguageAliasesResolveToCanonicalGrammars() {
         XCTAssertEqual(CodeLanguage.resolve("JS"), .javascript)
         XCTAssertEqual(CodeLanguage.resolve("tsx title=App"), .tsx)

@@ -244,7 +244,7 @@ actor DiagramRenderCoordinator {
             ]
         }
 
-        MarkdownParserService.digest(
+        return MarkdownParserService.digest(
             ([
                 request.kind.rawValue,
                 MarkdownParserService.digest(request.source),

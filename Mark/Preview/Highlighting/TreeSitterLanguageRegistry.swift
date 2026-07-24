@@ -14,10 +14,21 @@ import TreeSitterTSX
 import TreeSitterTypeScript
 import TreeSitterYAML
 
-struct TreeSitterLanguageDefinition: Sendable {
+nonisolated struct TreeSitterLanguageDefinition: Sendable {
     let language: CodeLanguage
     let grammarVersion: String
     let configuration: LanguageConfiguration
+}
+
+nonisolated enum TreeSitterLanguageRegistryError: LocalizedError, Sendable {
+    case queryBundleMissing(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .queryBundleMissing(let bundleName):
+            "The bundled Tree-sitter queries are missing for \(bundleName)."
+        }
+    }
 }
 
 nonisolated struct TreeSitterLanguageRegistry {
@@ -93,24 +104,48 @@ nonisolated struct TreeSitterLanguageRegistry {
         bundleName: String? = nil
     ) throws -> TreeSitterLanguageDefinition {
         let treeSitterLanguage = Language(pointer)
-        let configuration: LanguageConfiguration
-        if let bundleName {
-            configuration = try LanguageConfiguration(
-                treeSitterLanguage,
-                name: name,
-                bundleName: bundleName
-            )
-        } else {
-            configuration = try LanguageConfiguration(
-                treeSitterLanguage,
-                name: name
-            )
-        }
+        let resolvedBundleName =
+            bundleName ?? "TreeSitter\(name)_TreeSitter\(name)"
+        let configuration = try LanguageConfiguration(
+            treeSitterLanguage,
+            name: name,
+            queriesURL: try queriesURL(for: resolvedBundleName)
+        )
 
         return TreeSitterLanguageDefinition(
             language: language,
             grammarVersion: version,
             configuration: configuration
         )
+    }
+
+    private func queriesURL(for bundleName: String) throws -> URL {
+        let bundleFileName = "\(bundleName).bundle"
+        let bundles = [Bundle.main] + Bundle.allBundles + Bundle.allFrameworks
+        var resourceRoots: [URL] = []
+
+        for bundle in bundles {
+            if let resourceURL = bundle.resourceURL {
+                resourceRoots.append(resourceURL)
+            }
+            resourceRoots.append(bundle.bundleURL.deletingLastPathComponent())
+        }
+
+        for root in resourceRoots {
+            let candidate = root
+                .appendingPathComponent(bundleFileName, isDirectory: true)
+                .appendingPathComponent("Contents/Resources/queries", isDirectory: true)
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(
+                atPath: candidate.path,
+                isDirectory: &isDirectory
+            ),
+               isDirectory.boolValue,
+               FileManager.default.isReadableFile(atPath: candidate.path) {
+                return candidate
+            }
+        }
+
+        throw TreeSitterLanguageRegistryError.queryBundleMissing(bundleName)
     }
 }
