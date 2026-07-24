@@ -7,7 +7,7 @@ import CryptoKit
 import Combine
 import Foundation
 
-struct WorkspaceReference: Codable, Hashable, Identifiable {
+nonisolated struct WorkspaceReference: Codable, Hashable, Identifiable {
     let id: UUID
     let bookmarkData: Data
 

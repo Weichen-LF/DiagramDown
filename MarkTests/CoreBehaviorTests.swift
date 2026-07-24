@@ -436,46 +436,27 @@ final class WorkspaceRecoveryStoreTests: XCTestCase {
     }
 }
 
-@MainActor
 final class WorkspaceLaunchRestorationTests: XCTestCase {
     func testLastWorkspaceReferencePersistsAndIsClaimedOnlyOncePerLaunch() throws {
-        let storage = InMemoryWorkspaceLaunchStorage()
         let reference = WorkspaceReference(
             id: UUID(),
             bookmarkData: Data("bookmark".utf8)
         )
-        WorkspaceLaunchRestoration(
-            storage: storage
-        ).remember(reference)
-        let nextLaunch = WorkspaceLaunchRestoration(
-            storage: storage
-        )
+        let encoded = try JSONEncoder().encode(reference)
+        var state = WorkspaceLaunchState()
 
-        XCTAssertEqual(nextLaunch.takeReferenceForLaunch(), reference)
-        XCTAssertNil(nextLaunch.takeReferenceForLaunch())
+        XCTAssertEqual(state.takeReference(from: encoded), reference)
+        XCTAssertNil(state.takeReference(from: encoded))
     }
 
-    func testMissingOrInvalidReferenceIsIgnoredWithoutRetrying() throws {
-        let storage = InMemoryWorkspaceLaunchStorage()
-        storage.set(Data("invalid".utf8), forKey: "Workspace.lastReference")
-        let restoration = WorkspaceLaunchRestoration(
-            storage: storage
-        )
+    func testMissingOrInvalidReferenceIsIgnoredWithoutRetrying() {
+        var missingState = WorkspaceLaunchState()
+        var invalidState = WorkspaceLaunchState()
 
-        XCTAssertNil(restoration.takeReferenceForLaunch())
-        XCTAssertNil(restoration.takeReferenceForLaunch())
-    }
-}
-
-private final class InMemoryWorkspaceLaunchStorage: WorkspaceLaunchStorage {
-    private var values: [String: Data] = [:]
-
-    func data(forKey key: String) -> Data? {
-        values[key]
-    }
-
-    func set(_ data: Data, forKey key: String) {
-        values[key] = data
+        XCTAssertNil(missingState.takeReference(from: nil))
+        XCTAssertNil(missingState.takeReference(from: nil))
+        XCTAssertNil(invalidState.takeReference(from: Data("invalid".utf8)))
+        XCTAssertNil(invalidState.takeReference(from: nil))
     }
 }
 
