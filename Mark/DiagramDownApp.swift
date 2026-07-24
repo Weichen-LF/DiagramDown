@@ -20,8 +20,23 @@ struct DiagramDownApp: App {
         .commands {
             FormattingCommands()
             PreviewCommands()
+            WorkspaceCommands()
             AppCommands()
         }
+
+        WindowGroup("Workspace", for: WorkspaceReference.self) { $reference in
+            if let reference {
+                WorkspaceWindowView(reference: reference)
+                    .preferredColorScheme(preferredColorScheme)
+            }
+        }
+        .commands {
+            FormattingCommands()
+            PreviewCommands()
+            WorkspaceCommands()
+            AppCommands()
+        }
+        .defaultSize(width: 1_120, height: 720)
 
         Settings {
             PreviewSettingsView()
