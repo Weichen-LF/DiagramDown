@@ -25,6 +25,5 @@ xcodebuild \
   -configuration Debug \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data_path" \
-  -parallel-testing-enabled NO \
   "${xcodebuild_overrides[@]}" \
   test

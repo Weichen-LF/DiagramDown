@@ -50,7 +50,7 @@ final class DocumentViewModeTests: XCTestCase {
 
 @MainActor
 final class WorkspaceModelTests: XCTestCase {
-    func testEditingAndSavingUpdatesDirtyState() {
+    func testEditingAndSavingUpdatesDirtyState() async {
         let buffer = OpenFileBuffer(
             url: URL(fileURLWithPath: "/tmp/README.md"),
             text: "# Original\n"
@@ -65,7 +65,7 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertTrue(buffer.isDirty)
     }
 
-    func testOpeningSameStandardizedURLActivatesExistingBuffer() {
+    func testOpeningSameStandardizedURLActivatesExistingBuffer() async {
         let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
         let first = session.openFile(
             url: URL(fileURLWithPath: "/tmp/project/docs/../README.md"),
@@ -82,7 +82,7 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(first.text, "first")
     }
 
-    func testBuffersKeepIndependentEditorPreviewSessions() {
+    func testBuffersKeepIndependentEditorPreviewSessions() async {
         let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
         let first = session.openFile(
             url: URL(fileURLWithPath: "/tmp/project/first.md"),
@@ -104,7 +104,7 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(second.editorPreviewSession.editorScrollTarget.sourceLine, 1)
     }
 
-    func testDirtyBufferCannotCloseWithoutExplicitDiscard() {
+    func testDirtyBufferCannotCloseWithoutExplicitDiscard() async {
         let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
         let first = session.openFile(
             url: URL(fileURLWithPath: "/tmp/project/first.md"),
@@ -124,7 +124,7 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(session.activeFileID, second.id)
     }
 
-    func testClosingActiveCleanBufferSelectsAdjacentTab() {
+    func testClosingActiveCleanBufferSelectsAdjacentTab() async {
         let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
         let first = session.openFile(
             url: URL(fileURLWithPath: "/tmp/project/first.md"),

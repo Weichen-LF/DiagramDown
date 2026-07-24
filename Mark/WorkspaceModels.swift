@@ -3,6 +3,7 @@
 //  DiagramDown
 //
 
+import CryptoKit
 import Combine
 import Foundation
 
@@ -253,10 +254,16 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
     let url: URL
     let editorPreviewSession: EditorPreviewSessionState
 
-    @Published var text: String
-    @Published private(set) var savedText: String
+    @Published var text: String {
+        didSet {
+            currentTextFingerprint = Self.fingerprint(text)
+        }
+    }
+
+    @Published private(set) var savedTextFingerprint: String
     @Published var storedViewMode = DocumentViewMode.editorAndPreview.rawValue
     @Published private(set) var isSaving = false
+    private var currentTextFingerprint: String
 
     init(
         id: UUID = UUID(),
@@ -264,30 +271,38 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
         text: String,
         editorPreviewSession: EditorPreviewSessionState? = nil
     ) {
+        let fingerprint = Self.fingerprint(text)
         self.id = id
         self.url = url.standardizedFileURL
         self.text = text
-        savedText = text
         self.editorPreviewSession = editorPreviewSession ?? EditorPreviewSessionState()
+        savedTextFingerprint = fingerprint
+        currentTextFingerprint = fingerprint
     }
 
     var isDirty: Bool {
-        text != savedText
+        currentTextFingerprint != savedTextFingerprint
     }
 
     func markSaved() {
-        savedText = text
+        savedTextFingerprint = currentTextFingerprint
     }
 
     func markSaved(ifTextMatches savedText: String) {
         guard text == savedText else {
             return
         }
-        self.savedText = savedText
+        savedTextFingerprint = Self.fingerprint(savedText)
     }
 
     func setSaving(_ isSaving: Bool) {
         self.isSaving = isSaving
+    }
+
+    private static func fingerprint(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
     }
 }
 
