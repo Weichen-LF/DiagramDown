@@ -5,11 +5,28 @@
 
 import Foundation
 
+protocol WorkspaceLaunchStorage {
+    func data(forKey key: String) -> Data?
+    func set(_ data: Data, forKey key: String)
+}
+
+private struct UserDefaultsWorkspaceLaunchStorage: WorkspaceLaunchStorage {
+    let defaults: UserDefaults
+
+    func data(forKey key: String) -> Data? {
+        defaults.data(forKey: key)
+    }
+
+    func set(_ data: Data, forKey key: String) {
+        defaults.set(data, forKey: key)
+    }
+}
+
 @MainActor
 final class WorkspaceLaunchRestoration {
     static let shared = WorkspaceLaunchRestoration()
 
-    private let defaults: UserDefaults
+    private let storage: any WorkspaceLaunchStorage
     private let storageKey: String
     private var didAttemptRestoration = false
 
@@ -17,7 +34,15 @@ final class WorkspaceLaunchRestoration {
         defaults: UserDefaults = .standard,
         storageKey: String = "Workspace.lastReference"
     ) {
-        self.defaults = defaults
+        storage = UserDefaultsWorkspaceLaunchStorage(defaults: defaults)
+        self.storageKey = storageKey
+    }
+
+    init(
+        storage: any WorkspaceLaunchStorage,
+        storageKey: String = "Workspace.lastReference"
+    ) {
+        self.storage = storage
         self.storageKey = storageKey
     }
 
@@ -25,7 +50,7 @@ final class WorkspaceLaunchRestoration {
         guard let encoded = try? JSONEncoder().encode(reference) else {
             return
         }
-        defaults.set(encoded, forKey: storageKey)
+        storage.set(encoded, forKey: storageKey)
     }
 
     func takeReferenceForLaunch() -> WorkspaceReference? {
@@ -33,7 +58,7 @@ final class WorkspaceLaunchRestoration {
             return nil
         }
         didAttemptRestoration = true
-        guard let encoded = defaults.data(forKey: storageKey) else {
+        guard let encoded = storage.data(forKey: storageKey) else {
             return nil
         }
         return try? JSONDecoder().decode(WorkspaceReference.self, from: encoded)

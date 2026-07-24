@@ -439,20 +439,16 @@ final class WorkspaceRecoveryStoreTests: XCTestCase {
 @MainActor
 final class WorkspaceLaunchRestorationTests: XCTestCase {
     func testLastWorkspaceReferencePersistsAndIsClaimedOnlyOncePerLaunch() throws {
-        let defaults = UserDefaults.standard
-        let storageKey = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
-        defer { defaults.removeObject(forKey: storageKey) }
+        let storage = InMemoryWorkspaceLaunchStorage()
         let reference = WorkspaceReference(
             id: UUID(),
             bookmarkData: Data("bookmark".utf8)
         )
         WorkspaceLaunchRestoration(
-            defaults: defaults,
-            storageKey: storageKey
+            storage: storage
         ).remember(reference)
         let nextLaunch = WorkspaceLaunchRestoration(
-            defaults: defaults,
-            storageKey: storageKey
+            storage: storage
         )
 
         XCTAssertEqual(nextLaunch.takeReferenceForLaunch(), reference)
@@ -460,17 +456,26 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
     }
 
     func testMissingOrInvalidReferenceIsIgnoredWithoutRetrying() throws {
-        let defaults = UserDefaults.standard
-        let storageKey = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
-        defer { defaults.removeObject(forKey: storageKey) }
-        defaults.set(Data("invalid".utf8), forKey: storageKey)
+        let storage = InMemoryWorkspaceLaunchStorage()
+        storage.set(Data("invalid".utf8), forKey: "Workspace.lastReference")
         let restoration = WorkspaceLaunchRestoration(
-            defaults: defaults,
-            storageKey: storageKey
+            storage: storage
         )
 
         XCTAssertNil(restoration.takeReferenceForLaunch())
         XCTAssertNil(restoration.takeReferenceForLaunch())
+    }
+}
+
+private final class InMemoryWorkspaceLaunchStorage: WorkspaceLaunchStorage {
+    private var values: [String: Data] = [:]
+
+    func data(forKey key: String) -> Data? {
+        values[key]
+    }
+
+    func set(_ data: Data, forKey key: String) {
+        values[key] = data
     }
 }
 
