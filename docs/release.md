@@ -1,6 +1,6 @@
 # DiagramDown release process
 
-DiagramDown's public `0.17.x` release supports Apple Silicon only. Both the application and bundled D2 0.7.1 helper are arm64, and release validation rejects mixed or unexpected architectures.
+DiagramDown's current public releases support Apple Silicon only. Both the application and bundled D2 0.7.1 helper are arm64, and release validation rejects mixed or unexpected architectures.
 
 The default distribution is a reproducible community release that does not require an Apple Developer account. It is ad-hoc signed and is not notarized by Apple. Every download page must state this limitation prominently.
 
@@ -36,7 +36,7 @@ The deprecated `package-private-beta.sh` command remains as a compatibility wrap
 Download the ZIP and checksum file into the same directory, then run:
 
 ```sh
-shasum -a 256 -c DiagramDown-0.17.0-arm64.zip.sha256
+shasum -a 256 -c DiagramDown-0.21.0-arm64.zip.sha256
 ```
 
 The result must report `OK`. A checksum proves that the file matches the release asset; it does not provide Apple notarization or identity verification.
@@ -56,7 +56,7 @@ Never disable Gatekeeper globally. Users who require an Apple-notarized applicat
 
 ## Tag-driven GitHub Release
 
-Pushing a semantic-version tag such as `v0.17.0` starts `.github/workflows/release.yml`. The workflow requires the tagged commit to be reachable from `main`, requires matching release notes under `docs/releases/`, reruns all tests, builds and validates the package, and creates a GitHub Release with the ZIP and checksum.
+Pushing a semantic-version tag such as `v0.21.0` starts `.github/workflows/release.yml`. The workflow requires the tagged commit to be reachable from `main`, requires matching release notes under `docs/releases/`, reruns all tests, builds and validates the package, and creates a GitHub Release with the ZIP and checksum.
 
 Follow [release-checklist.md](release-checklist.md) before pushing a tag. A tag is the publication action; do not push a release tag until its preparation pull request is merged and `main` is green.
 

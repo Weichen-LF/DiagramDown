@@ -10,6 +10,24 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 - Post-release fixes and usability improvements based on community feedback
 
+## [0.21.0] - 2026-07-24
+
+### Added
+
+- Folder workspaces opened through a sandbox-authorized **Open Folder** command
+- Lazily loaded directory tree with Markdown file recognition and safe symlink handling
+- Multi-file workspace tabs with independent editor, preview, Undo, selection, scroll, layout, and dirty state
+- Explicit atomic saving for the active workspace file and Save All when closing a dirty workspace
+- Save, Discard, and Cancel confirmation for dirty tabs and workspace windows
+- Security-scoped bookmark ownership for the lifetime of each workspace window
+- UTF-8 validation, a 4 MB editing limit, and root-containment checks for workspace files
+- Unit coverage for directory enumeration, path containment, multi-buffer state, file loading, and saving
+
+### Changed
+
+- Extracted the document editor and preview into a shared surface used by single-file and workspace modes
+- Retained each native editor view across tab switches so Undo, selection, and scroll state remain file-specific
+
 ## [0.20.0] - 2026-07-17
 
 ### Added

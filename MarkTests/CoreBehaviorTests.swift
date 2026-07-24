@@ -48,6 +48,269 @@ final class DocumentViewModeTests: XCTestCase {
     }
 }
 
+@MainActor
+final class WorkspaceModelTests: XCTestCase {
+    func testEditingAndSavingUpdatesDirtyState() async {
+        let buffer = OpenFileBuffer(
+            url: URL(fileURLWithPath: "/tmp/README.md"),
+            text: "# Original\n"
+        )
+
+        XCTAssertFalse(buffer.isDirty)
+        buffer.text = "# Changed\n"
+        XCTAssertTrue(buffer.isDirty)
+        buffer.markSaved()
+        XCTAssertFalse(buffer.isDirty)
+        buffer.text = "# Original\n"
+        XCTAssertTrue(buffer.isDirty)
+    }
+
+    func testOpeningSameStandardizedURLActivatesExistingBuffer() async {
+        let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
+        let first = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/docs/../README.md"),
+            text: "first"
+        )
+        let second = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/README.md"),
+            text: "ignored"
+        )
+
+        XCTAssertTrue(first === second)
+        XCTAssertEqual(session.openFiles.count, 1)
+        XCTAssertEqual(session.activeFileID, first.id)
+        XCTAssertEqual(first.text, "first")
+    }
+
+    func testBuffersKeepIndependentEditorPreviewSessions() async {
+        let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
+        let first = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/first.md"),
+            text: "first"
+        )
+        let second = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/second.md"),
+            text: "second"
+        )
+
+        XCTAssertFalse(first.editorPreviewSession === second.editorPreviewSession)
+        first.editorPreviewSession.editorScrollTarget = ScrollSyncTarget(
+            sourceLine: 12,
+            progress: 0.5,
+            usesProgressFallback: false,
+            animated: false,
+            generation: 1
+        )
+        XCTAssertEqual(second.editorPreviewSession.editorScrollTarget.sourceLine, 1)
+    }
+
+    func testDirtyBufferCannotCloseWithoutExplicitDiscard() async {
+        let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
+        let first = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/first.md"),
+            text: "first"
+        )
+        let second = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/second.md"),
+            text: "second"
+        )
+        first.text = "changed"
+
+        XCTAssertEqual(session.closeDecision(for: first.id), .needsConfirmation)
+        XCTAssertFalse(session.closeFile(id: first.id))
+        XCTAssertEqual(session.openFiles.count, 2)
+        XCTAssertTrue(session.closeFile(id: first.id, discardingChanges: true))
+        XCTAssertEqual(session.openFiles.map(\.id), [second.id])
+        XCTAssertEqual(session.activeFileID, second.id)
+    }
+
+    func testClosingActiveCleanBufferSelectsAdjacentTab() async {
+        let session = WorkspaceSession(rootURL: URL(fileURLWithPath: "/tmp/project"))
+        let first = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/first.md"),
+            text: "first"
+        )
+        let second = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/second.md"),
+            text: "second"
+        )
+        let third = session.openFile(
+            url: URL(fileURLWithPath: "/tmp/project/third.md"),
+            text: "third"
+        )
+        session.activateFile(id: second.id)
+
+        XCTAssertTrue(session.closeFile(id: second.id))
+        XCTAssertEqual(session.openFiles.map(\.id), [first.id, third.id])
+        XCTAssertEqual(session.activeFileID, third.id)
+    }
+
+    func testPathContainmentUsesComponentsInsteadOfStringPrefixes() {
+        let root = URL(fileURLWithPath: "/tmp/project")
+
+        XCTAssertTrue(
+            WorkspacePathPolicy.contains(
+                URL(fileURLWithPath: "/tmp/project/docs/README.md"),
+                within: root
+            )
+        )
+        XCTAssertFalse(
+            WorkspacePathPolicy.contains(
+                URL(fileURLWithPath: "/tmp/project-secret/README.md"),
+                within: root
+            )
+        )
+        XCTAssertFalse(
+            WorkspacePathPolicy.contains(
+                URL(fileURLWithPath: "/tmp/project/../outside.md"),
+                within: root
+            )
+        )
+    }
+
+    func testDirectoryServiceSortsFoldersFirstAndRecognizesMarkdown() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("docs", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try Data("plain".utf8).write(to: root.appendingPathComponent("z.txt"))
+        try Data("# Markdown".utf8).write(to: root.appendingPathComponent("README.md"))
+        try Data("# Markdown".utf8).write(to: root.appendingPathComponent("notes.markdown"))
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let nodes = try await WorkspaceFileService().children(of: root, within: root)
+
+        XCTAssertEqual(nodes.map(\.name), ["docs", "notes.markdown", "README.md", "z.txt"])
+        XCTAssertEqual(
+            nodes.map(\.kind),
+            [.directory, .markdownFile, .markdownFile, .otherFile]
+        )
+    }
+
+    func testDirectoryServiceDoesNotExposeSymlinks() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let link = root.appendingPathComponent("outside")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: outside)
+        }
+
+        let nodes = try await WorkspaceFileService().children(of: root, within: root)
+
+        XCTAssertTrue(nodes.isEmpty)
+    }
+
+    func testFileServiceLoadsAndAtomicallySavesUTF8Markdown() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("# Original\n".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkspaceFileService()
+
+        let original = try await service.loadMarkdown(at: fileURL, within: root)
+        XCTAssertEqual(original, "# Original\n")
+        try await service.saveMarkdown("# 已保存\n", to: fileURL, within: root)
+        let saved = try await service.loadMarkdown(at: fileURL, within: root)
+        XCTAssertEqual(saved, "# 已保存\n")
+    }
+
+    func testFileServiceRejectsUnsupportedAndInvalidUTF8Files() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let textURL = root.appendingPathComponent("notes.txt")
+        let markdownURL = root.appendingPathComponent("invalid.md")
+        try Data("text".utf8).write(to: textURL)
+        try Data([0xC3, 0x28]).write(to: markdownURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkspaceFileService()
+
+        do {
+            _ = try await service.loadMarkdown(at: textURL, within: root)
+            XCTFail("Expected an unsupported file type error")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceFileError, .unsupportedFileType)
+        }
+
+        do {
+            _ = try await service.loadMarkdown(at: markdownURL, within: root)
+            XCTFail("Expected an invalid UTF-8 error")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceFileError, .invalidUTF8)
+        }
+    }
+
+    func testSavingActiveBufferUpdatesDiskAndDirtyState() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("# Original\n".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+        let buffer = session.openFile(url: fileURL, text: "# Original\n")
+        buffer.text = "# Changed\n"
+
+        XCTAssertTrue(buffer.isDirty)
+        let didSave = await session.saveActiveFile()
+        XCTAssertTrue(didSave)
+        XCTAssertFalse(buffer.isDirty)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "# Changed\n")
+    }
+
+    func testTreeNodeOpensMarkdownIntoActiveBuffer() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("# Workspace\n".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+
+        await session.loadRoot()
+        let node = try XCTUnwrap(session.rootNodes.first)
+        await session.openFile(node)
+
+        XCTAssertEqual(session.openFiles.count, 1)
+        XCTAssertEqual(session.activeFile?.url, fileURL.standardizedFileURL)
+        XCTAssertEqual(session.activeFile?.text, "# Workspace\n")
+    }
+
+    func testSaveAllWritesEveryDirtyBuffer() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let firstURL = root.appendingPathComponent("first.md")
+        let secondURL = root.appendingPathComponent("second.md")
+        try Data("first".utf8).write(to: firstURL)
+        try Data("second".utf8).write(to: secondURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+        let first = session.openFile(url: firstURL, text: "first")
+        let second = session.openFile(url: secondURL, text: "second")
+        first.text = "updated first"
+        second.text = "updated second"
+
+        let didSave = await session.saveAllDirtyFiles()
+
+        XCTAssertTrue(didSave)
+        XCTAssertFalse(first.isDirty)
+        XCTAssertFalse(second.isDirty)
+        XCTAssertEqual(try String(contentsOf: firstURL, encoding: .utf8), "updated first")
+        XCTAssertEqual(try String(contentsOf: secondURL, encoding: .utf8), "updated second")
+    }
+}
+
 final class MarkdownFileCodecTests: XCTestCase {
     func testUTF8RoundTripPreservesMarkdownAndUnicode() throws {
         let markdown = "# DiagramDown\n\n中文内容 🌏\n\n```mermaid\nA --> B\n```\n"

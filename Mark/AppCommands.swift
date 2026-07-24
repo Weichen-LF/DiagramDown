@@ -44,6 +44,7 @@ enum AppHelp {
         alert.informativeText = """
         New Document        ⌘N
         Open…               ⌘O
+        Open Folder…        ⇧⌘O
         Save                ⌘S
         Find                ⌘F
         Format Document     ⇧⌥F

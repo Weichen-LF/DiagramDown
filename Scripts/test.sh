@@ -4,14 +4,10 @@ set -euo pipefail
 
 repository_root="${0:A:h:h}"
 derived_data_path="${DIAGRAMDOWN_DERIVED_DATA_PATH:-/tmp/DiagramDownTestDerivedData}"
-xcodebuild_overrides=()
-
-if [[ "${CI:-false}" == "true" ]]; then
-  xcodebuild_overrides+=(
-    CODE_SIGNING_ALLOWED=NO
-    CODE_SIGNING_REQUIRED=NO
-  )
-fi
+xcodebuild_overrides=(
+  CODE_SIGNING_ALLOWED=NO
+  CODE_SIGNING_REQUIRED=NO
+)
 
 cd "$repository_root"
 

@@ -6,7 +6,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum MarkdownFileCodec {
+nonisolated enum MarkdownFileCodec {
     static func decode(_ data: Data) throws -> String {
         guard let text = String(data: data, encoding: .utf8) else {
             throw CocoaError(.fileReadInapplicableStringEncoding)
