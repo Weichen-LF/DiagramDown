@@ -54,6 +54,28 @@ Grammar versions are part of the highlighter cache key.
 
 ## Follow-up benchmarks
 
-The parser/highlighter/diagram services expose the boundaries needed for the
-large-document and memory benchmarks in the plan. Record cold/warm timings and
-leak observations here before declaring a release candidate.
+Run `./Scripts/benchmark-native-preview.sh` to execute the opt-in benchmarks;
+the normal `./Scripts/test.sh` run excludes them.
+
+Baseline captured on 2026-07-24 on an arm64 MacBook Pro with macOS 26.5.2,
+using the Debug XCTest build:
+
+- parser scenarios (20 KiB and 200 KiB sampled eight times, 2 MiB sampled
+  once) completed together in 0.874 seconds
+- 50 unique Swift blocks, measured with cold then warm Tree-sitter caches,
+  completed together in 0.649 seconds
+- Debug app bundle size: 110,684 KiB
+
+The benchmark prints per-scenario mean/P95 parser timings and cold/warm
+highlighter timings when run from Xcode. The aggregate XCTest durations above
+come from the command-line result bundle.
+
+A deliberately adversarial 2 MiB fixture made from thousands of repeated
+structural blocks did not finish within 239 seconds and was interrupted. The
+repeatable size benchmark instead fixes structural complexity at 20 sections
+and pads document prose. Treat very-high block-count reconciliation as a
+separate performance issue before the release candidate.
+
+The removed WebKit pipeline is no longer available on this branch, so a
+relative old/new baseline was not fabricated. Instruments memory/leak
+observations also remain required before declaring a release candidate.

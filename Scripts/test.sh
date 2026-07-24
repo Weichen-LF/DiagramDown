@@ -26,4 +26,5 @@ xcodebuild \
   -destination 'platform=macOS' \
   -derivedDataPath "$derived_data_path" \
   "${xcodebuild_overrides[@]}" \
+  -skip-testing:MarkTests/NativePreviewBenchmarkTests \
   test
