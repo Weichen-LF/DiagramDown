@@ -111,6 +111,8 @@ nonisolated struct WorkspaceTreeRow: Identifiable, Hashable, Sendable {
 }
 
 actor WorkspaceFileService {
+    static let maximumEditableFileSize = 4 * 1_024 * 1_024
+
     private let fileManager: FileManager
 
     init(fileManager: FileManager = .default) {
@@ -174,6 +176,71 @@ actor WorkspaceFileService {
             return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }
     }
+
+    func loadMarkdown(at fileURL: URL, within rootURL: URL) throws -> String {
+        try validateMarkdownFile(fileURL, within: rootURL)
+        let values = try fileURL.resourceValues(forKeys: [.fileSizeKey])
+        if let fileSize = values.fileSize,
+           fileSize > Self.maximumEditableFileSize {
+            throw WorkspaceFileError.fileTooLarge
+        }
+
+        let data = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+        guard data.count <= Self.maximumEditableFileSize else {
+            throw WorkspaceFileError.fileTooLarge
+        }
+        do {
+            return try MarkdownFileCodec.decode(data)
+        } catch {
+            throw WorkspaceFileError.invalidUTF8
+        }
+    }
+
+    func saveMarkdown(_ text: String, to fileURL: URL, within rootURL: URL) throws {
+        try validateMarkdownFile(fileURL, within: rootURL)
+        let data = try MarkdownFileCodec.encode(text)
+        guard data.count <= Self.maximumEditableFileSize else {
+            throw WorkspaceFileError.fileTooLarge
+        }
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    private func validateMarkdownFile(_ fileURL: URL, within rootURL: URL) throws {
+        guard WorkspacePathPolicy.contains(fileURL, within: rootURL) else {
+            throw WorkspaceFileError.outsideWorkspace
+        }
+        guard ["md", "markdown"].contains(fileURL.pathExtension.lowercased()) else {
+            throw WorkspaceFileError.unsupportedFileType
+        }
+
+        let values = try fileURL.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+        )
+        guard values.isSymbolicLink != true,
+              values.isRegularFile == true else {
+            throw WorkspaceFileError.unsupportedFileType
+        }
+    }
+}
+
+enum WorkspaceFileError: LocalizedError, Equatable {
+    case outsideWorkspace
+    case unsupportedFileType
+    case fileTooLarge
+    case invalidUTF8
+
+    var errorDescription: String? {
+        switch self {
+        case .outsideWorkspace:
+            "The file is outside the selected workspace."
+        case .unsupportedFileType:
+            "Only regular .md and .markdown files can be edited."
+        case .fileTooLarge:
+            "The file exceeds the 4 MB workspace editing limit."
+        case .invalidUTF8:
+            "The file is not valid UTF-8 text."
+        }
+    }
 }
 
 enum WorkspaceBufferCloseDecision: Equatable {
@@ -194,6 +261,8 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
     }
 
     @Published private(set) var savedTextFingerprint: String
+    @Published var storedViewMode = DocumentViewMode.editorAndPreview.rawValue
+    @Published private(set) var isSaving = false
     private var currentTextFingerprint: String
 
     init(
@@ -219,6 +288,10 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
         savedTextFingerprint = currentTextFingerprint
     }
 
+    func setSaving(_ isSaving: Bool) {
+        self.isSaving = isSaving
+    }
+
     private static func fingerprint(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8))
             .map { String(format: "%02x", $0) }
@@ -238,7 +311,9 @@ final class WorkspaceSession: ObservableObject {
     @Published private(set) var rootNodes: [FileTreeNode] = []
     @Published private(set) var expandedDirectoryIDs: Set<FileTreeNode.ID> = []
     @Published private(set) var loadingDirectoryIDs: Set<FileTreeNode.ID> = []
+    @Published private(set) var openingFileIDs: Set<FileTreeNode.ID> = []
     @Published private(set) var treeErrorDescription: String?
+    @Published private(set) var fileErrorDescription: String?
     private var childrenByDirectoryID: [FileTreeNode.ID: [FileTreeNode]] = [:]
 
     init(
@@ -318,6 +393,66 @@ final class WorkspaceSession: ObservableObject {
             expandedDirectoryIDs.remove(node.id)
             treeErrorDescription = error.localizedDescription
         }
+    }
+
+    func openFile(_ node: FileTreeNode) async {
+        guard node.canOpen else {
+            return
+        }
+
+        let fileURL = rootURL.appendingPathComponent(node.relativePath)
+        if let existing = openFiles.first(where: { $0.url == fileURL.standardizedFileURL }) {
+            activeFileID = existing.id
+            return
+        }
+        guard openingFileIDs.insert(node.id).inserted else {
+            return
+        }
+        defer { openingFileIDs.remove(node.id) }
+
+        do {
+            let text = try await fileService.loadMarkdown(at: fileURL, within: rootURL)
+            openFile(url: fileURL, text: text)
+            fileErrorDescription = nil
+        } catch {
+            fileErrorDescription = error.localizedDescription
+        }
+    }
+
+    @discardableResult
+    func saveFile(id: OpenFileBuffer.ID) async -> Bool {
+        guard let buffer = openFiles.first(where: { $0.id == id }),
+              !buffer.isSaving else {
+            return false
+        }
+
+        buffer.setSaving(true)
+        defer { buffer.setSaving(false) }
+        do {
+            try await fileService.saveMarkdown(
+                buffer.text,
+                to: buffer.url,
+                within: rootURL
+            )
+            buffer.markSaved()
+            fileErrorDescription = nil
+            return true
+        } catch {
+            fileErrorDescription = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func saveActiveFile() async -> Bool {
+        guard let activeFileID else {
+            return false
+        }
+        return await saveFile(id: activeFileID)
+    }
+
+    func clearFileError() {
+        fileErrorDescription = nil
     }
 
     @discardableResult

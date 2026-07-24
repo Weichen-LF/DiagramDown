@@ -34,6 +34,7 @@ struct DiagramDownApp: App {
             FormattingCommands()
             PreviewCommands()
             WorkspaceCommands()
+            WorkspaceSaveCommands()
             AppCommands()
         }
         .defaultSize(width: 1_120, height: 720)

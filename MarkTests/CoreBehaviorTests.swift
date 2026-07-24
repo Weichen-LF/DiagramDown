@@ -207,6 +207,84 @@ final class WorkspaceModelTests: XCTestCase {
 
         XCTAssertTrue(nodes.isEmpty)
     }
+
+    func testFileServiceLoadsAndAtomicallySavesUTF8Markdown() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("# Original\n".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkspaceFileService()
+
+        let original = try await service.loadMarkdown(at: fileURL, within: root)
+        XCTAssertEqual(original, "# Original\n")
+        try await service.saveMarkdown("# 已保存\n", to: fileURL, within: root)
+        let saved = try await service.loadMarkdown(at: fileURL, within: root)
+        XCTAssertEqual(saved, "# 已保存\n")
+    }
+
+    func testFileServiceRejectsUnsupportedAndInvalidUTF8Files() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let textURL = root.appendingPathComponent("notes.txt")
+        let markdownURL = root.appendingPathComponent("invalid.md")
+        try Data("text".utf8).write(to: textURL)
+        try Data([0xC3, 0x28]).write(to: markdownURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkspaceFileService()
+
+        do {
+            _ = try await service.loadMarkdown(at: textURL, within: root)
+            XCTFail("Expected an unsupported file type error")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceFileError, .unsupportedFileType)
+        }
+
+        do {
+            _ = try await service.loadMarkdown(at: markdownURL, within: root)
+            XCTFail("Expected an invalid UTF-8 error")
+        } catch {
+            XCTAssertEqual(error as? WorkspaceFileError, .invalidUTF8)
+        }
+    }
+
+    func testSavingActiveBufferUpdatesDiskAndDirtyState() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("# Original\n".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+        let buffer = session.openFile(url: fileURL, text: "# Original\n")
+        buffer.text = "# Changed\n"
+
+        XCTAssertTrue(buffer.isDirty)
+        let didSave = await session.saveActiveFile()
+        XCTAssertTrue(didSave)
+        XCTAssertFalse(buffer.isDirty)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "# Changed\n")
+    }
+
+    func testTreeNodeOpensMarkdownIntoActiveBuffer() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("# Workspace\n".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+
+        await session.loadRoot()
+        let node = try XCTUnwrap(session.rootNodes.first)
+        await session.openFile(node)
+
+        XCTAssertEqual(session.openFiles.count, 1)
+        XCTAssertEqual(session.activeFile?.url, fileURL.standardizedFileURL)
+        XCTAssertEqual(session.activeFile?.text, "# Workspace\n")
+    }
 }
 
 final class MarkdownFileCodecTests: XCTestCase {

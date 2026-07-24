@@ -40,3 +40,36 @@ struct WorkspaceCommands: Commands {
         }
     }
 }
+
+struct WorkspaceSaveAction {
+    let perform: () -> Void
+
+    func callAsFunction() {
+        perform()
+    }
+}
+
+private struct WorkspaceSaveActionKey: FocusedValueKey {
+    typealias Value = WorkspaceSaveAction
+}
+
+extension FocusedValues {
+    var workspaceSaveAction: WorkspaceSaveAction? {
+        get { self[WorkspaceSaveActionKey.self] }
+        set { self[WorkspaceSaveActionKey.self] = newValue }
+    }
+}
+
+struct WorkspaceSaveCommands: Commands {
+    @FocusedValue(\.workspaceSaveAction) private var save
+
+    var body: some Commands {
+        CommandGroup(replacing: .saveItem) {
+            Button("Save") {
+                save?()
+            }
+            .keyboardShortcut("s", modifiers: .command)
+            .disabled(save == nil)
+        }
+    }
+}

@@ -9,7 +9,8 @@ import SwiftUI
 
 @MainActor
 final class MarkdownEditorController: ObservableObject {
-    weak var coordinator: MarkdownEditorView.Coordinator?
+    var coordinator: MarkdownEditorView.Coordinator?
+    var retainedScrollView: NSScrollView?
 
     func formatDocument() {
         coordinator?.formatDocument()
@@ -23,10 +24,28 @@ struct MarkdownEditorView: NSViewRepresentable {
     let editorController: MarkdownEditorController
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, scrollPosition: $scrollPosition)
+        if let coordinator = editorController.coordinator {
+            coordinator.updateBindings(
+                text: $text,
+                scrollPosition: $scrollPosition
+            )
+            return coordinator
+        }
+
+        let coordinator = Coordinator(text: $text, scrollPosition: $scrollPosition)
+        editorController.coordinator = coordinator
+        return coordinator
     }
 
     func makeNSView(context: Context) -> NSScrollView {
+        if let retainedScrollView = editorController.retainedScrollView {
+            context.coordinator.updateBindings(
+                text: $text,
+                scrollPosition: $scrollPosition
+            )
+            return retainedScrollView
+        }
+
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -73,6 +92,7 @@ struct MarkdownEditorView: NSViewRepresentable {
             textView: textView,
             editorController: editorController
         )
+        editorController.retainedScrollView = scrollView
         return scrollView
     }
 
@@ -99,7 +119,7 @@ struct MarkdownEditorView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
-        coordinator.invalidate()
+        coordinator.prepareForReuse()
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -122,6 +142,10 @@ struct MarkdownEditorView: NSViewRepresentable {
         ) {
             _text = text
             _scrollPosition = scrollPosition
+        }
+
+        deinit {
+            invalidate()
         }
 
         func attach(
@@ -162,6 +186,10 @@ struct MarkdownEditorView: NSViewRepresentable {
                 NotificationCenter.default.removeObserver(boundsObserver)
                 self.boundsObserver = nil
             }
+        }
+
+        func prepareForReuse() {
+            publishScrollPosition()
         }
 
         func formatDocument() {
