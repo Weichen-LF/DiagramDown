@@ -78,12 +78,48 @@ d2_executable="$app_path/Contents/Helpers/d2"
 [[ -x "$main_executable" ]] || fail "Missing main executable: $main_executable"
 [[ -x "$d2_executable" ]] || fail "Missing D2 helper: $d2_executable"
 
-for license_name in LICENSE MarkdownIt-LICENSE.txt Mermaid-LICENSE.txt D2-LICENSE.txt HighlightJS-LICENSE.txt Prettier-LICENSE.txt Prettier-THIRD-PARTY-NOTICES.txt; do
+for license_name in \
+  LICENSE \
+  Mermaid-LICENSE.txt \
+  D2-LICENSE.txt \
+  Prettier-LICENSE.txt \
+  Prettier-THIRD-PARTY-NOTICES.txt \
+  SwiftMarkdown-LICENSE.txt \
+  SwiftCMark-LICENSE.txt \
+  SVGView-LICENSE.txt \
+  SwiftTreeSitter-LICENSE.txt \
+  TreeSitter-LICENSE.txt \
+  TreeSitterSwift-LICENSE.txt \
+  TreeSitterLua-LICENSE.txt \
+  TreeSitterYAML-LICENSE.txt \
+  TreeSitterJavaScript-LICENSE.txt \
+  TreeSitterTypeScript-LICENSE.txt \
+  TreeSitterJSON-LICENSE.txt \
+  TreeSitterBash-LICENSE.txt
+do
   [[ -f "$app_path/Contents/Resources/$license_name" ]] || fail "Missing bundled license: $license_name"
 done
 
-for runtime_name in formatter.html formatter.js prettier.js markdown.js highlight.min.js; do
+for runtime_name in formatter.html formatter.js prettier.js markdown.js renderer.html renderer.js mermaid.min.js; do
   [[ -f "$app_path/Contents/Resources/$runtime_name" ]] || fail "Missing bundled runtime asset: $runtime_name"
+done
+
+for removed_runtime_name in preview.html preview.css preview.js markdown-it.min.js highlight.min.js; do
+  [[ ! -e "$app_path/Contents/Resources/$removed_runtime_name" ]] || fail "Legacy preview runtime is still bundled: $removed_runtime_name"
+done
+
+for grammar_bundle in \
+  TreeSitterBash_TreeSitterBash.bundle \
+  TreeSitterJSON_TreeSitterJSON.bundle \
+  TreeSitterJavaScript_TreeSitterJavaScript.bundle \
+  TreeSitterLua_TreeSitterLua.bundle \
+  TreeSitterSwift_TreeSitterSwift.bundle \
+  TreeSitterTypeScript_TreeSitterTSX.bundle \
+  TreeSitterTypeScript_TreeSitterTypeScript.bundle \
+  TreeSitterYAML_TreeSitterYAML.bundle
+do
+  [[ -d "$app_path/Contents/Resources/$grammar_bundle" ]] || fail "Missing Tree-sitter grammar resources: $grammar_bundle"
+  [[ -f "$app_path/Contents/Resources/$grammar_bundle/Contents/Resources/queries/highlights.scm" ]] || fail "Missing highlights query in $grammar_bundle"
 done
 
 example_document="$app_path/Contents/Resources/DiagramDown-Example.md"

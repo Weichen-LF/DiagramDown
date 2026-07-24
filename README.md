@@ -34,8 +34,9 @@ write naturally in Markdown, and see the finished document update beside you.
 Mermaid and D2 fenced blocks become live diagrams without a browser, server, or
 cloud account.
 
-Everything needed for preview, diagrams, syntax highlighting, and formatting is
-bundled with the app. Your documents stay on your Mac.
+Everything needed for the native SwiftUI preview, diagrams, Tree-sitter syntax
+highlighting, and formatting is bundled with the app. Your documents stay on
+your Mac.
 
 ## Made for real Markdown projects
 
@@ -81,7 +82,7 @@ Requirements:
 - macOS 15 or later
 - Apple Silicon
 - Xcode with the macOS SDK
-- Node.js 18 or later for preview-runtime tests
+- Node.js 18 or later for bundled-runtime tests
 
 Open `Mark.xcodeproj` and run the `Mark` scheme, or use:
 
@@ -113,7 +114,9 @@ See [the release guide](docs/release.md) for packaging and verification details.
 
 ## Project
 
-- Read the [architecture and implementation plan](docs/swiftui-markdown-mermaid-d2-design.md).
+- Read the [native preview architecture](docs/native-markdown-preview-architecture.md).
+- See the [migration plan](docs/DiagramDown_native_markdown_preview_migration_plan.md)
+  and [implementation notes](docs/native-preview-migration-notes.md).
 - Explore the [folder workspace design](docs/workspace-folder-design.md).
 - See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change.
 - Follow [SECURITY.md](SECURITY.md) for security-sensitive reports.

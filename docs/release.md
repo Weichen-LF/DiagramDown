@@ -23,7 +23,9 @@ The script:
 
 1. runs the complete automated test suite
 2. creates an arm64 Release build with local ad-hoc signatures
-3. validates the application and D2 architectures, signatures, Hardened Runtime, sandbox entitlements, and bundled licenses
+3. validates the application and D2 architectures, signatures, Hardened Runtime,
+   sandbox entitlements, native-preview runtime assets, Tree-sitter grammar
+   resources, absence of the legacy Web preview, and bundled licenses
 4. creates `DiagramDown-<version>-arm64.dmg` with `DiagramDown.app` and an Applications shortcut
 5. writes a matching `.sha256` checksum
 
@@ -75,6 +77,8 @@ Validation covers:
 - application sandbox and inherited helper sandbox entitlements
 - exact ad-hoc signature status
 - bundled project and third-party license texts
+- isolated Mermaid renderer and Tree-sitter query bundles
+- absence of markdown-it, highlight.js, and visible preview Web assets
 
 ## Optional future notarized distribution
 

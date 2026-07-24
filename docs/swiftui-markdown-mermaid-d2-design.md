@@ -1,5 +1,10 @@
 # macOS Markdown 编辑与预览工具技术方案
 
+> [!WARNING]
+> 本文记录的是 `0.22.0` 及更早版本的 Web 预览架构，已被
+> [原生 Markdown 预览架构](native-markdown-preview-architecture.md) 取代。
+> 当前实现不再使用 markdown-it、highlight.js 或可见 `WKWebView`。
+
 > `0.22.0` 架构更新：DiagramDown 现在只使用文件夹工作区 Scene。下文中关于
 > `DocumentGroup`、`MarkdownDocument`、`ContentView`、Finder 单文件打开和
 > 未命名单文件窗口的内容属于早期 MVP 架构，现已由 `WorkspaceSceneView`、

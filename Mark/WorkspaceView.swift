@@ -137,7 +137,10 @@ private struct WorkspaceContentView: View {
             }
 
             if let activeFile = session.activeFile {
-                WorkspaceEditorContainer(buffer: activeFile)
+                WorkspaceEditorContainer(
+                    buffer: activeFile,
+                    workspaceRootURL: session.rootURL
+                )
             } else {
                 ContentUnavailableView(
                     "No File Open",
@@ -362,11 +365,13 @@ private final class WindowReaderView: NSView {
 
 private struct WorkspaceEditorContainer: View {
     @ObservedObject var buffer: OpenFileBuffer
+    let workspaceRootURL: URL
 
     var body: some View {
         EditorPreviewSurface(
             text: $buffer.text,
             fileURL: buffer.url,
+            workspaceRootURL: workspaceRootURL,
             storedViewMode: $buffer.storedViewMode,
             session: buffer.editorPreviewSession
         )

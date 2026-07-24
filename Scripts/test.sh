@@ -15,9 +15,9 @@ for script in Scripts/*.sh; do
   zsh -n "$script"
 done
 
-node --check Mark/Resources/Preview/preview.js
+node --check Mark/Resources/MermaidRenderer/renderer.js
 node --check Mark/Resources/Formatter/formatter.js
-node --test Tests/PreviewRuntimeTests.mjs Tests/FormatterRuntimeTests.mjs
+node --test Tests/MermaidRendererTests.mjs Tests/FormatterRuntimeTests.mjs
 
 xcodebuild \
   -project Mark.xcodeproj \

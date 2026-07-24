@@ -35,10 +35,10 @@ enum PreviewZoom {
 
 @MainActor
 final class PreviewController: ObservableObject {
-    weak var coordinator: MarkdownPreviewView.Coordinator?
+    var nativeExportPDF: (() -> Void)?
 
     func exportPDF() {
-        coordinator?.exportPreviewPDF()
+        nativeExportPDF?()
     }
 }
 
