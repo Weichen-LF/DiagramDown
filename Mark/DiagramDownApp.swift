@@ -13,22 +13,9 @@ struct DiagramDownApp: App {
         AppAppearance.system.rawValue
 
     var body: some Scene {
-        DocumentGroup(newDocument: MarkdownDocument()) { file in
-            ContentView(document: file.$document, fileURL: file.fileURL)
+        WindowGroup {
+            WorkspaceSceneView()
                 .preferredColorScheme(preferredColorScheme)
-        }
-        .commands {
-            FormattingCommands()
-            PreviewCommands()
-            WorkspaceCommands()
-            AppCommands()
-        }
-
-        WindowGroup("Workspace", for: WorkspaceReference.self) { $reference in
-            if let reference {
-                WorkspaceWindowView(reference: reference)
-                    .preferredColorScheme(preferredColorScheme)
-            }
         }
         .commands {
             FormattingCommands()

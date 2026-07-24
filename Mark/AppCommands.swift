@@ -28,8 +28,7 @@ enum ExampleDocument {
 }
 
 enum EditorGuidance {
-    static let placeholder =
-        "Start writing Markdown, or choose Help > Open Example Document."
+    static let placeholder = "Start writing Markdown."
 }
 
 @MainActor
@@ -42,9 +41,7 @@ enum AppHelp {
         let alert = NSAlert()
         alert.messageText = "DiagramDown Keyboard Shortcuts"
         alert.informativeText = """
-        New Document        ⌘N
-        Open…               ⌘O
-        Open Folder…        ⇧⌘O
+        Open Folder…        ⌘O
         Save                ⌘S
         Find                ⌘F
         Format Document     ⇧⌥F
@@ -60,27 +57,11 @@ enum AppHelp {
         alert.runModal()
     }
 
-    static func showExampleError(_ error: Error) {
-        let alert = NSAlert(error: error)
-        alert.messageText = "The example document could not be opened."
-        alert.runModal()
-    }
 }
 
 struct AppCommands: Commands {
-    @Environment(\.newDocument) private var newDocument
-
     var body: some Commands {
         CommandGroup(after: .help) {
-            Button("Open Example Document") {
-                do {
-                    let source = try ExampleDocument.source()
-                    newDocument(MarkdownDocument(text: source))
-                } catch {
-                    AppHelp.showExampleError(error)
-                }
-            }
-
             Button("Keyboard Shortcuts…") {
                 AppHelp.showKeyboardShortcuts()
             }

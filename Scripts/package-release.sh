@@ -100,9 +100,10 @@ output_root="${output_root:A}"
 timestamp="$(date '+%Y%m%d-%H%M%S')"
 release_directory="$output_root/DiagramDown-$marketing_version-$build_number-community-release-$timestamp"
 app_path="$release_directory/DiagramDown.app"
-zip_name="DiagramDown-$marketing_version-arm64.zip"
-zip_path="$release_directory/$zip_name"
-checksum_path="$zip_path.sha256"
+dmg_name="DiagramDown-$marketing_version-arm64.dmg"
+dmg_path="$release_directory/$dmg_name"
+checksum_path="$dmg_path.sha256"
+dmg_staging_path="$release_directory/dmg-root"
 mkdir -p "$release_directory"
 
 print -- "Building DiagramDown $marketing_version ($build_number) for the Apple Silicon community release..."
@@ -125,18 +126,29 @@ built_app_path="$derived_data_path/Build/Products/Release/DiagramDown.app"
 /usr/bin/ditto "$built_app_path" "$app_path"
 
 "$repository_root/Scripts/validate-release.sh" "$app_path" --adhoc
-/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app_path" "$zip_path"
+
+mkdir -p "$dmg_staging_path"
+/usr/bin/ditto "$app_path" "$dmg_staging_path/DiagramDown.app"
+/bin/ln -s /Applications "$dmg_staging_path/Applications"
+/usr/bin/hdiutil create \
+  -volname "DiagramDown $marketing_version" \
+  -srcfolder "$dmg_staging_path" \
+  -format UDZO \
+  -ov \
+  "$dmg_path"
+/usr/bin/hdiutil verify "$dmg_path"
+/bin/rm -rf "$dmg_staging_path"
 
 (
   cd "$release_directory"
-  /usr/bin/shasum -a 256 "$zip_name" > "$zip_name.sha256"
+  /usr/bin/shasum -a 256 "$dmg_name" > "$dmg_name.sha256"
 )
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
     print -- "version=$marketing_version"
     print -- "build_number=$build_number"
-    print -- "zip_path=$zip_path"
+    print -- "dmg_path=$dmg_path"
     print -- "checksum_path=$checksum_path"
   } >> "$GITHUB_OUTPUT"
 fi
@@ -147,5 +159,5 @@ print -- "This artifact is ad-hoc signed and not notarized by Apple."
 print -- "Publish it only with the Gatekeeper limitation stated prominently in the release notes."
 print -- ""
 print -- "Application: $app_path"
-print -- "ZIP: $zip_path"
+print -- "DMG: $dmg_path"
 print -- "SHA-256: $checksum_path"

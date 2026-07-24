@@ -50,6 +50,78 @@ final class DocumentViewModeTests: XCTestCase {
 
 @MainActor
 final class WorkspaceModelTests: XCTestCase {
+    func testRecoverySnapshotRestoresTabsDirtyTextAndWorkspaceState() async {
+        let root = URL(fileURLWithPath: "/tmp/project")
+        let firstID = UUID()
+        let secondID = UUID()
+        let snapshot = WorkspaceRecoverySnapshot(
+            workspaceID: UUID(),
+            openFiles: [
+                WorkspaceBufferRecoverySnapshot(
+                    id: firstID,
+                    relativePath: "README.md",
+                    text: "# Unsaved edit\n",
+                    savedTextFingerprint: OpenFileBuffer.fingerprint("# Saved\n"),
+                    storedViewMode: DocumentViewMode.editorOnly.rawValue,
+                    editorSourceLine: 18,
+                    editorScrollProgress: 0.4
+                ),
+                WorkspaceBufferRecoverySnapshot(
+                    id: secondID,
+                    relativePath: "docs/notes.markdown",
+                    text: "Notes\n",
+                    savedTextFingerprint: OpenFileBuffer.fingerprint("Notes\n"),
+                    storedViewMode: DocumentViewMode.previewOnly.rawValue,
+                    editorSourceLine: 3,
+                    editorScrollProgress: 0.1
+                ),
+            ],
+            activeFileID: firstID,
+            sidebarVisible: false,
+            expandedDirectoryIDs: ["docs"]
+        )
+
+        let session = WorkspaceSession(rootURL: root, recoverySnapshot: snapshot)
+
+        XCTAssertEqual(session.openFiles.map(\.id), [firstID, secondID])
+        XCTAssertEqual(session.activeFileID, firstID)
+        XCTAssertEqual(session.activeFile?.text, "# Unsaved edit\n")
+        XCTAssertTrue(session.activeFile?.isDirty == true)
+        XCTAssertEqual(session.activeFile?.storedViewMode, DocumentViewMode.editorOnly.rawValue)
+        XCTAssertEqual(session.activeFile?.editorPreviewSession.editorScrollPosition.sourceLine, 18)
+        XCTAssertEqual(session.activeFile?.editorPreviewSession.editorScrollPosition.progress, 0.4)
+        XCTAssertFalse(session.sidebarVisible)
+        XCTAssertEqual(session.expandedDirectoryIDs, ["docs"])
+    }
+
+    func testRecoverySnapshotRejectsUnsafeRelativePaths() async {
+        let snapshot = WorkspaceRecoverySnapshot(
+            workspaceID: UUID(),
+            openFiles: [
+                WorkspaceBufferRecoverySnapshot(
+                    id: UUID(),
+                    relativePath: "../outside.md",
+                    text: "private",
+                    savedTextFingerprint: OpenFileBuffer.fingerprint("private"),
+                    storedViewMode: DocumentViewMode.editorAndPreview.rawValue,
+                    editorSourceLine: 1,
+                    editorScrollProgress: 0
+                ),
+            ],
+            activeFileID: nil,
+            sidebarVisible: true,
+            expandedDirectoryIDs: ["../outside"]
+        )
+
+        let session = WorkspaceSession(
+            rootURL: URL(fileURLWithPath: "/tmp/project"),
+            recoverySnapshot: snapshot
+        )
+
+        XCTAssertTrue(session.openFiles.isEmpty)
+        XCTAssertTrue(session.expandedDirectoryIDs.isEmpty)
+    }
+
     func testEditingAndSavingUpdatesDirtyState() async {
         let buffer = OpenFileBuffer(
             url: URL(fileURLWithPath: "/tmp/README.md"),
@@ -311,6 +383,90 @@ final class WorkspaceModelTests: XCTestCase {
     }
 }
 
+final class WorkspaceRecoveryStoreTests: XCTestCase {
+    func testCorruptSnapshotDoesNotPreventWorkspaceFromOpening() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let workspaceID = UUID()
+        try Data("not json".utf8).write(
+            to: directory.appendingPathComponent(
+                "\(workspaceID.uuidString.lowercased()).json"
+            )
+        )
+        let store = WorkspaceRecoveryStore(directoryURL: directory)
+
+        let loadedSnapshot = try await store.load(workspaceID: workspaceID)
+        XCTAssertNil(loadedSnapshot)
+    }
+
+    func testSnapshotIsWrittenAtomicallyAndRoundTrips() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = WorkspaceRecoveryStore(directoryURL: directory)
+        let workspaceID = UUID()
+        let snapshot = WorkspaceRecoverySnapshot(
+            workspaceID: workspaceID,
+            updatedAt: Date(timeIntervalSince1970: 1_000),
+            openFiles: [
+                WorkspaceBufferRecoverySnapshot(
+                    id: UUID(),
+                    relativePath: "README.md",
+                    text: "# Recovered\n",
+                    savedTextFingerprint: "saved-fingerprint",
+                    storedViewMode: DocumentViewMode.editorAndPreview.rawValue,
+                    editorSourceLine: 5,
+                    editorScrollProgress: 0.25
+                ),
+            ],
+            activeFileID: nil,
+            sidebarVisible: true,
+            expandedDirectoryIDs: ["docs"]
+        )
+
+        try await store.save(snapshot)
+
+        let loadedSnapshot = try await store.load(workspaceID: workspaceID)
+        XCTAssertEqual(loadedSnapshot, snapshot)
+        try await store.remove(workspaceID: workspaceID)
+        let removedSnapshot = try await store.load(workspaceID: workspaceID)
+        XCTAssertNil(removedSnapshot)
+    }
+}
+
+@MainActor
+final class WorkspaceLaunchRestorationTests: XCTestCase {
+    func testLastWorkspaceReferencePersistsAndIsClaimedOnlyOncePerLaunch() throws {
+        let suiteName = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let reference = WorkspaceReference(
+            id: UUID(),
+            bookmarkData: Data("bookmark".utf8)
+        )
+        WorkspaceLaunchRestoration(
+            defaults: defaults
+        ).remember(reference)
+        let nextLaunch = WorkspaceLaunchRestoration(defaults: defaults)
+
+        XCTAssertEqual(nextLaunch.takeReferenceForLaunch(), reference)
+        XCTAssertNil(nextLaunch.takeReferenceForLaunch())
+    }
+
+    func testMissingOrInvalidReferenceIsIgnoredWithoutRetrying() throws {
+        let suiteName = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(Data("invalid".utf8), forKey: "Workspace.lastReference")
+        let restoration = WorkspaceLaunchRestoration(defaults: defaults)
+
+        XCTAssertNil(restoration.takeReferenceForLaunch())
+        XCTAssertNil(restoration.takeReferenceForLaunch())
+    }
+}
+
 final class MarkdownFileCodecTests: XCTestCase {
     func testUTF8RoundTripPreservesMarkdownAndUnicode() throws {
         let markdown = "# DiagramDown\n\n中文内容 🌏\n\n```mermaid\nA --> B\n```\n"
@@ -350,9 +506,14 @@ final class OnboardingTests: XCTestCase {
         XCTAssertTrue(links.allSatisfy { $0.path.hasPrefix("/Weichen-LF/DiagramDown") })
     }
 
-    func testBlankEditorGuidancePointsToTheExampleDocument() {
-        XCTAssertTrue(EditorGuidance.placeholder.contains("Help"))
-        XCTAssertTrue(EditorGuidance.placeholder.contains("Example Document"))
+    func testBlankEditorGuidanceIsWorkspaceAppropriate() {
+        XCTAssertEqual(EditorGuidance.placeholder, "Start writing Markdown.")
+    }
+
+    func testApplicationDoesNotAdvertiseSingleFileDocumentTypes() {
+        XCTAssertNil(Bundle.main.infoDictionary?["CFBundleDocumentTypes"])
+        XCTAssertNil(Bundle.main.infoDictionary?["UTImportedTypeDeclarations"])
+        XCTAssertNil(Bundle.main.infoDictionary?["LSSupportsOpeningDocumentsInPlace"])
     }
 }
 

@@ -29,7 +29,7 @@ struct WorkspaceWindowView: View {
                 return
             }
             do {
-                session = try WorkspaceSession(reference: reference)
+                session = try await WorkspaceSession(reference: reference)
             } catch {
                 loadingError = error.localizedDescription
             }
@@ -57,7 +57,7 @@ private struct WorkspaceContentView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
-                    session.sidebarVisible.toggle()
+                    session.setSidebarVisible(!session.sidebarVisible)
                 } label: {
                     Label("Toggle Sidebar", systemImage: "sidebar.left")
                 }
@@ -76,6 +76,11 @@ private struct WorkspaceContentView: View {
         )
         .task {
             await session.loadRoot()
+        }
+        .onDisappear {
+            Task {
+                await session.persistRecoveryNow()
+            }
         }
         .alert(
             "Workspace Error",

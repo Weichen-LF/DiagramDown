@@ -24,7 +24,7 @@ The script:
 1. runs the complete automated test suite
 2. creates an arm64 Release build with local ad-hoc signatures
 3. validates the application and D2 architectures, signatures, Hardened Runtime, sandbox entitlements, and bundled licenses
-4. creates `DiagramDown-<version>-arm64.zip`
+4. creates `DiagramDown-<version>-arm64.dmg` with `DiagramDown.app` and an Applications shortcut
 5. writes a matching `.sha256` checksum
 
 Artifacts are written under `artifacts/`. `--skip-tests` is allowed only when the exact commit already passed `./Scripts/test.sh`; `--allow-dirty` is for deliberate local diagnostics and must not be used for a published build.
@@ -33,10 +33,10 @@ The deprecated `package-private-beta.sh` command remains as a compatibility wrap
 
 ## Verify a download
 
-Download the ZIP and checksum file into the same directory, then run:
+Download the DMG and checksum file into the same directory, then run:
 
 ```sh
-shasum -a 256 -c DiagramDown-0.21.0-arm64.zip.sha256
+shasum -a 256 -c DiagramDown-<version>-arm64.dmg.sha256
 ```
 
 The result must report `OK`. A checksum proves that the file matches the release asset; it does not provide Apple notarization or identity verification.
@@ -47,8 +47,8 @@ The community build is ad-hoc signed and not notarized. macOS Gatekeeper may blo
 
 After verifying the checksum and repository source:
 
-1. unzip the archive
-2. drag `DiagramDown.app` to Applications if desired
+1. open the DMG
+2. drag `DiagramDown.app` to the Applications shortcut
 3. Control-click or right-click the application and choose **Open**
 4. if macOS still blocks it, use **Open Anyway** in System Settings > Privacy & Security
 
@@ -56,7 +56,7 @@ Never disable Gatekeeper globally. Users who require an Apple-notarized applicat
 
 ## Tag-driven GitHub Release
 
-Pushing a semantic-version tag such as `v0.21.0` starts `.github/workflows/release.yml`. The workflow requires the tagged commit to be reachable from `main`, requires matching release notes under `docs/releases/`, reruns all tests, builds and validates the package, and creates a GitHub Release with the ZIP and checksum.
+Pushing a semantic-version tag starts `.github/workflows/release.yml`. The workflow requires the tagged commit to be reachable from `main`, requires matching release notes under `docs/releases/`, reruns all tests, builds and validates the package, and creates a GitHub Release with the DMG and checksum.
 
 Follow [release-checklist.md](release-checklist.md) before pushing a tag. A tag is the publication action; do not push a release tag until its preparation pull request is merged and `main` is green.
 

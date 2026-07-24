@@ -11,10 +11,12 @@ The name combines the product's two core ideas: diagrams and Markdown.
 
 ## Current status
 
-Version `0.21.0` adds folder workspaces and multi-file Markdown editing:
+Version `0.22.0` makes the folder workspace DiagramDown's only application mode
+and adds crash-safe restoration:
 
-- Create, open, edit, and save `.md` and `.markdown` files
-- Open a folder in a dedicated workspace window with **File > Open Folder…**
+- Open a folder with **File > Open Folder…** or `Command-O`
+- Reopen the most recently used folder automatically when DiagramDown launches
+- Show an in-app **Open Folder…** welcome screen when no folder has been used
 - Browse a lazily loaded, sandbox-aware directory tree
 - Open and switch between multiple Markdown files using native workspace tabs
 - Keep independent text, Undo, selection, scroll, preview, and dirty state per open file
@@ -25,7 +27,7 @@ Version `0.21.0` adds folder workspaces and multi-file Markdown editing:
 - Native `NSTextView` editing with macOS input methods
 - Native line-number gutter with logical-line numbering and current-line emphasis
 - Undo and redo, selection, scrolling, and find bar support
-- UTF-8 document storage and automatic document saving
+- UTF-8 document storage and explicit atomic saving
 - App Sandbox access to user-selected files
 - Live split-view Markdown preview backed by a persistent `WKWebView`
 - Bundled offline `markdown-it` rendering with light and dark appearance support
@@ -58,9 +60,8 @@ Version `0.21.0` adds folder workspaces and multi-file Markdown editing:
 - Automated arm64 archive, Developer ID export, ZIP packaging, notarization, and ticket stapling
 - Release validation for nested signatures, Hardened Runtime, sandbox entitlements, architectures, licenses, and Gatekeeper
 - MIT license bundled with packaged builds
-- Bundled editable example covering Markdown, Mermaid, D2, focused diagrams, and PDF export
+- Bundled example covering Markdown, Mermaid, D2, focused diagrams, and PDF export
 - Help menu links for keyboard shortcuts, documentation, feedback, and release notes
-- Empty-editor guidance for discovering the example document
 - Privacy-preserving diagnostics export that excludes document content, names, paths, and personal identifiers
 - Sanitized environment, preference, D2 helper, and cache summaries for actionable issue reports
 
@@ -99,7 +100,7 @@ The Swift tests can also be run from Xcode with the `Mark` scheme.
 
 ## Download
 
-Download the latest ZIP and matching SHA-256 checksum from [GitHub Releases](https://github.com/Weichen-LF/DiagramDown/releases/latest).
+Download the latest DMG and matching SHA-256 checksum from [GitHub Releases](https://github.com/Weichen-LF/DiagramDown/releases/latest).
 
 > [!IMPORTANT]
 > The current Apple Silicon build is ad-hoc signed and is not notarized by Apple. macOS Gatekeeper may block its first launch. Verify the checksum and repository source, then use Finder's **Open** command or **Open Anyway** in System Settings > Privacy & Security. Never disable Gatekeeper globally.
@@ -110,7 +111,7 @@ To build the same public community-release package locally:
 ./Scripts/package-release.sh
 ```
 
-The script runs the automated suite, creates an arm64 Release build with ad-hoc signatures, validates the application and bundled D2 helper, and writes a ZIP plus SHA-256 checksum under `artifacts/`. See [the release guide](docs/release.md) for verification and first-launch instructions.
+The script runs the automated suite, creates an arm64 Release build with ad-hoc signatures, validates the application and bundled D2 helper, and writes a drag-to-Applications DMG plus SHA-256 checksum under `artifacts/`. See [the release guide](docs/release.md) for verification and first-launch instructions.
 
 An optional Developer ID packaging path remains available for a future notarized distribution:
 
@@ -126,14 +127,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 
 ## Project layout
 
-- `Mark/MarkdownDocument.swift`: Markdown file lifecycle
+- `Mark/MarkdownFileCodec.swift`: shared UTF-8 Markdown encoding and decoding
 - `Mark/MarkdownEditorView.swift`: native AppKit editor embedded in SwiftUI
 - `Mark/MarkdownFormattingService.swift`: isolated offline Prettier runtime and formatting coordination
 - `Mark/FormattingCommands.swift`: native Format Document command and focused action
 - `Mark/LineNumberTextView.swift`: native editor text drawing with visible logical-line numbering
-- `Mark/ContentView.swift`: document window content
-- `Mark/EditorPreviewSurface.swift`: editor and preview surface shared by documents and workspace tabs
-- `Mark/WorkspaceModels.swift`: folder authorization, directory tree, file buffers, and workspace persistence state
+- `Mark/EditorPreviewSurface.swift`: editor and preview surface used by workspace tabs
+- `Mark/WorkspaceSceneView.swift`: single folder-workspace application entry point
+- `Mark/WorkspaceModels.swift`: folder authorization, directory tree, and file buffers
+- `Mark/WorkspaceRecovery.swift`: atomic workspace tab and unsaved-edit recovery snapshots
+- `Mark/WorkspaceLaunchRestoration.swift`: last-folder persistence and launch reopening
 - `Mark/WorkspaceView.swift`: folder sidebar, tab bar, multi-file editing, and close protection
 - `Mark/WorkspaceCommands.swift`: Open Folder and workspace Save commands
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
@@ -141,7 +144,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and two-level cache
 - `Mark/PreviewSettingsView.swift`: persistent appearance and preview preferences
 - `Mark/PreviewCommands.swift`: preview zoom and PDF export commands
-- `Mark/AppCommands.swift`: example-document and Help menu commands
+- `Mark/AppCommands.swift`: Help menu commands and bundled example metadata
 - `Mark/DiagnosticsReport.swift`: privacy-preserving support report generation and export
 - `Mark/DiagramDown.entitlements`: explicit sandbox permissions used by signed builds
 - `Mark/Resources/Preview`: bundled offline preview runtime
@@ -150,7 +153,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `MarkTests`: native unit tests for core document and preview behavior
 - `Tests/PreviewRuntimeTests.mjs`: offline preview structure and bridge regression tests
 - `Scripts/test.sh`: complete local test entry point
-- `Scripts/package-release.sh`: ad-hoc signed Apple Silicon community-release packaging and checksum generation
+- `Scripts/package-release.sh`: ad-hoc signed Apple Silicon DMG packaging and checksum generation
 - `Scripts/package-private-beta.sh`: compatibility wrapper for the community-release packager
 - `Scripts/release.sh`: Developer ID archive, export, packaging, and optional notarization
 - `Scripts/validate-release.sh`: architecture, signature, entitlement, license, and Gatekeeper checks
@@ -188,5 +191,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 19. First-run example, Help menu, diagnostics export, and support hardening — complete for `0.19.0`
 20. Reliable PDF export, document formatting, and fenced-code highlighting — complete for `0.20.0`
 21. Folder workspaces, lazy directory trees, and multi-file Markdown tabs — complete for `0.21.0`
-22. Workspace restoration, external file changes, and file operations — planned
-23. Notarized distribution and universal Intel support — optional later work
+22. Workspace-only startup, tab and unsaved-edit restoration, and DMG distribution — complete for `0.22.0`
+23. External file changes and workspace file operations — planned
+24. Notarized distribution and universal Intel support — optional later work
