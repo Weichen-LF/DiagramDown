@@ -439,28 +439,35 @@ final class WorkspaceRecoveryStoreTests: XCTestCase {
 @MainActor
 final class WorkspaceLaunchRestorationTests: XCTestCase {
     func testLastWorkspaceReferencePersistsAndIsClaimedOnlyOncePerLaunch() throws {
-        let suiteName = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let defaults = UserDefaults.standard
+        let storageKey = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
+        defer { defaults.removeObject(forKey: storageKey) }
         let reference = WorkspaceReference(
             id: UUID(),
             bookmarkData: Data("bookmark".utf8)
         )
         WorkspaceLaunchRestoration(
-            defaults: defaults
+            defaults: defaults,
+            storageKey: storageKey
         ).remember(reference)
-        let nextLaunch = WorkspaceLaunchRestoration(defaults: defaults)
+        let nextLaunch = WorkspaceLaunchRestoration(
+            defaults: defaults,
+            storageKey: storageKey
+        )
 
         XCTAssertEqual(nextLaunch.takeReferenceForLaunch(), reference)
         XCTAssertNil(nextLaunch.takeReferenceForLaunch())
     }
 
     func testMissingOrInvalidReferenceIsIgnoredWithoutRetrying() throws {
-        let suiteName = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(Data("invalid".utf8), forKey: "Workspace.lastReference")
-        let restoration = WorkspaceLaunchRestoration(defaults: defaults)
+        let defaults = UserDefaults.standard
+        let storageKey = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
+        defer { defaults.removeObject(forKey: storageKey) }
+        defaults.set(Data("invalid".utf8), forKey: storageKey)
+        let restoration = WorkspaceLaunchRestoration(
+            defaults: defaults,
+            storageKey: storageKey
+        )
 
         XCTAssertNil(restoration.takeReferenceForLaunch())
         XCTAssertNil(restoration.takeReferenceForLaunch())
