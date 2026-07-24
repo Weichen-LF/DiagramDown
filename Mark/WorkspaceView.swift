@@ -53,6 +53,7 @@ private struct WorkspaceContentView: View {
         }
         .frame(minWidth: 760, minHeight: 460)
         .navigationTitle(session.rootURL.lastPathComponent)
+        .background(WorkspaceWindowCloseGuard(session: session))
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
@@ -220,6 +221,137 @@ private struct WorkspaceContentView: View {
         }
         pendingCloseFileID = nil
         session.closeFile(id: id, discardingChanges: true)
+    }
+}
+
+private struct WorkspaceWindowCloseGuard: NSViewRepresentable {
+    let session: WorkspaceSession
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(session: session)
+    }
+
+    func makeNSView(context: Context) -> WindowReaderView {
+        let view = WindowReaderView()
+        view.onWindowChanged = { [weak coordinator = context.coordinator] window in
+            coordinator?.attach(to: window)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: WindowReaderView, context: Context) {
+        if let window = view.window {
+            context.coordinator.attach(to: window)
+        }
+    }
+
+    static func dismantleNSView(_ view: WindowReaderView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator: NSObject, NSWindowDelegate {
+        private let session: WorkspaceSession
+        private weak var window: NSWindow?
+        private weak var originalDelegate: (any NSWindowDelegate)?
+        private var permitsNextClose = false
+        private var isPresentingConfirmation = false
+
+        init(session: WorkspaceSession) {
+            self.session = session
+        }
+
+        deinit {
+            detach()
+        }
+
+        func attach(to window: NSWindow?) {
+            guard let window, self.window !== window else {
+                return
+            }
+            detach()
+            self.window = window
+            originalDelegate = window.delegate
+            window.delegate = self
+        }
+
+        func detach() {
+            if let window, window.delegate === self {
+                window.delegate = originalDelegate
+            }
+            window = nil
+            originalDelegate = nil
+        }
+
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            if permitsNextClose {
+                permitsNextClose = false
+                return originalDelegate?.windowShouldClose?(sender) ?? true
+            }
+            guard session.openFiles.contains(where: \.isDirty) else {
+                return originalDelegate?.windowShouldClose?(sender) ?? true
+            }
+            guard !isPresentingConfirmation else {
+                return false
+            }
+
+            isPresentingConfirmation = true
+            let dirtyCount = session.openFiles.filter(\.isDirty).count
+            let alert = NSAlert()
+            alert.messageText = "Save changes before closing the workspace?"
+            alert.informativeText = dirtyCount == 1
+                ? "One open file has unsaved changes."
+                : "\(dirtyCount) open files have unsaved changes."
+            alert.addButton(withTitle: "Save All")
+            alert.addButton(withTitle: "Discard Changes")
+            alert.addButton(withTitle: "Cancel")
+            alert.beginSheetModal(for: sender) { [weak self, weak sender] response in
+                guard let self, let sender else {
+                    return
+                }
+                isPresentingConfirmation = false
+                switch response {
+                case .alertFirstButtonReturn:
+                    Task {
+                        if await self.session.saveAllDirtyFiles() {
+                            self.permitsNextClose = true
+                            sender.performClose(nil)
+                        }
+                    }
+                case .alertSecondButtonReturn:
+                    permitsNextClose = true
+                    sender.performClose(nil)
+                default:
+                    break
+                }
+            }
+            return false
+        }
+
+        override func responds(to selector: Selector!) -> Bool {
+            super.responds(to: selector)
+                || originalDelegate?.responds(to: selector) == true
+        }
+
+        override func forwardingTarget(for selector: Selector!) -> Any? {
+            if originalDelegate?.responds(to: selector) == true {
+                return originalDelegate
+            }
+            return super.forwardingTarget(for: selector)
+        }
+    }
+}
+
+private final class WindowReaderView: NSView {
+    var onWindowChanged: ((NSWindow?) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+            onWindowChanged?(window)
+        }
     }
 }
 

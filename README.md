@@ -11,9 +11,17 @@ The name combines the product's two core ideas: diagrams and Markdown.
 
 ## Current status
 
-Version `0.20.0` fixes full-document PDF export and adds offline formatting and code highlighting:
+Version `0.21.0` adds folder workspaces and multi-file Markdown editing:
 
 - Create, open, edit, and save `.md` and `.markdown` files
+- Open a folder in a dedicated workspace window with **File > Open Folder…**
+- Browse a lazily loaded, sandbox-aware directory tree
+- Open and switch between multiple Markdown files using native workspace tabs
+- Keep independent text, Undo, selection, scroll, preview, and dirty state per open file
+- Save the active workspace file atomically with `Command-S`
+- Confirm Save, Discard, or Cancel when closing dirty tabs or a dirty workspace window
+- Restore sandbox authority from security-scoped folder bookmarks
+- Reject invalid UTF-8, oversized files, symbolic links, and paths outside the workspace root
 - Native `NSTextView` editing with macOS input methods
 - Native line-number gutter with logical-line numbering and current-line emphasis
 - Undo and redo, selection, scrolling, and find bar support
@@ -124,6 +132,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `Mark/FormattingCommands.swift`: native Format Document command and focused action
 - `Mark/LineNumberTextView.swift`: native editor text drawing with visible logical-line numbering
 - `Mark/ContentView.swift`: document window content
+- `Mark/EditorPreviewSurface.swift`: editor and preview surface shared by documents and workspace tabs
+- `Mark/WorkspaceModels.swift`: folder authorization, directory tree, file buffers, and workspace persistence state
+- `Mark/WorkspaceView.swift`: folder sidebar, tab bar, multi-file editing, and close protection
+- `Mark/WorkspaceCommands.swift`: Open Folder and workspace Save commands
 - `Mark/MarkdownPreviewView.swift`: persistent WebKit preview and update coordination
 - `Mark/ScrollSyncState.swift`: editor-preview scroll position and source target state
 - `Mark/D2RenderService.swift`: bounded D2 process execution, temporary-file lifecycle, and two-level cache
@@ -148,6 +160,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 - `docs/examples/d2.md`: D2 rendering smoke-test document
 - `docs/examples/all-features.md`: combined release smoke-test document
 - `docs/swiftui-markdown-mermaid-d2-design.md`: architecture and phased implementation plan
+- `docs/workspace-folder-design.md`: folder workspace architecture and delivery plan
 - `docs/product-identity.md`: product name, icon, and visual identity notes
 - `docs/release.md`: signing, notarization, and release runbook
 - `docs/release-checklist.md`: tag, package, GitHub Release, and verification checklist
@@ -174,4 +187,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and pull-request guidance
 18. Tag-driven GitHub Release automation — complete for `0.17.0`
 19. First-run example, Help menu, diagnostics export, and support hardening — complete for `0.19.0`
 20. Reliable PDF export, document formatting, and fenced-code highlighting — complete for `0.20.0`
-21. Notarized distribution and universal Intel support — optional later work
+21. Folder workspaces, lazy directory trees, and multi-file Markdown tabs — complete for `0.21.0`
+22. Workspace restoration, external file changes, and file operations — planned
+23. Notarized distribution and universal Intel support — optional later work

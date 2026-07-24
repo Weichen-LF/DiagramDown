@@ -288,6 +288,13 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
         savedTextFingerprint = currentTextFingerprint
     }
 
+    func markSaved(ifTextMatches savedText: String) {
+        guard text == savedText else {
+            return
+        }
+        savedTextFingerprint = Self.fingerprint(savedText)
+    }
+
     func setSaving(_ isSaving: Bool) {
         self.isSaving = isSaving
     }
@@ -428,13 +435,14 @@ final class WorkspaceSession: ObservableObject {
 
         buffer.setSaving(true)
         defer { buffer.setSaving(false) }
+        let textToSave = buffer.text
         do {
             try await fileService.saveMarkdown(
-                buffer.text,
+                textToSave,
                 to: buffer.url,
                 within: rootURL
             )
-            buffer.markSaved()
+            buffer.markSaved(ifTextMatches: textToSave)
             fileErrorDescription = nil
             return true
         } catch {
@@ -449,6 +457,22 @@ final class WorkspaceSession: ObservableObject {
             return false
         }
         return await saveFile(id: activeFileID)
+    }
+
+    @discardableResult
+    func saveAllDirtyFiles() async -> Bool {
+        let dirtyFileIDs = openFiles.filter(\.isDirty).map(\.id)
+        for id in dirtyFileIDs {
+            guard await saveFile(id: id) else {
+                return false
+            }
+        }
+
+        guard !openFiles.contains(where: \.isDirty) else {
+            fileErrorDescription = "A file changed while the workspace was saving. Save again."
+            return false
+        }
+        return true
     }
 
     func clearFileError() {

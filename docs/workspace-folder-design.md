@@ -1,5 +1,8 @@
 # DiagramDown folder workspace design
 
+> Implementation status: the `0.21.0` workspace MVP is complete. Folder restoration,
+> external-change handling, file operations, Quick Open, and search remain follow-up work.
+
 ## 1. Goal
 
 Add a folder-based workspace alongside the current single-file document mode:
@@ -294,7 +297,7 @@ Rules:
 
 ## 11. Proposed implementation sequence
 
-### 0.21.0 — workspace MVP
+### 0.21.0 — workspace MVP (implemented)
 
 1. Extract `EditorPreviewSurface` without changing single-file behavior.
 2. Add `WorkspaceReference`, security-scoped bookmark handling, and workspace `WindowGroup`.
@@ -315,7 +318,7 @@ MVP exclusions:
 - no automatic save
 - no drag-and-drop reordering
 
-### 0.22.0 — reliability and restoration
+### 0.22.0 — reliability and restoration (planned)
 
 - Restore recent folders and open tabs from security-scoped bookmarks
 - Save All
@@ -324,7 +327,7 @@ MVP exclusions:
 - File creation, rename, and delete with confirmation
 - Sidebar reveal and refresh commands
 
-### 0.23.0 — workspace productivity
+### 0.23.0 — workspace productivity (planned)
 
 - Quick Open
 - Workspace text search

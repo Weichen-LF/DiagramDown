@@ -285,6 +285,30 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(session.activeFile?.url, fileURL.standardizedFileURL)
         XCTAssertEqual(session.activeFile?.text, "# Workspace\n")
     }
+
+    func testSaveAllWritesEveryDirtyBuffer() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let firstURL = root.appendingPathComponent("first.md")
+        let secondURL = root.appendingPathComponent("second.md")
+        try Data("first".utf8).write(to: firstURL)
+        try Data("second".utf8).write(to: secondURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+        let first = session.openFile(url: firstURL, text: "first")
+        let second = session.openFile(url: secondURL, text: "second")
+        first.text = "updated first"
+        second.text = "updated second"
+
+        let didSave = await session.saveAllDirtyFiles()
+
+        XCTAssertTrue(didSave)
+        XCTAssertFalse(first.isDirty)
+        XCTAssertFalse(second.isDirty)
+        XCTAssertEqual(try String(contentsOf: firstURL, encoding: .utf8), "updated first")
+        XCTAssertEqual(try String(contentsOf: secondURL, encoding: .utf8), "updated second")
+    }
 }
 
 final class MarkdownFileCodecTests: XCTestCase {
