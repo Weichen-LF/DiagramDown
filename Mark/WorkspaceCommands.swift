@@ -7,18 +7,22 @@ import AppKit
 import SwiftUI
 
 struct WorkspaceCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
+    @FocusedValue(\.workspaceOpenFolderAction) private var openFolder
 
     var body: some Commands {
-        CommandGroup(after: .newItem) {
+        CommandGroup(replacing: .newItem) {
             Button("Open Folder…") {
-                openFolder()
+                openFolder?()
             }
-            .keyboardShortcut("o", modifiers: [.command, .shift])
+            .keyboardShortcut("o", modifiers: .command)
+            .disabled(openFolder == nil)
         }
     }
+}
 
-    private func openFolder() {
+@MainActor
+enum WorkspaceFolderPicker {
+    static func choose() -> WorkspaceReference? {
         let panel = NSOpenPanel()
         panel.title = "Open Folder"
         panel.prompt = "Open"
@@ -28,17 +32,30 @@ struct WorkspaceCommands: Commands {
         panel.canCreateDirectories = false
 
         guard panel.runModal() == .OK, let folderURL = panel.url else {
-            return
+            return nil
         }
 
         do {
-            openWindow(value: try WorkspaceReference.create(for: folderURL))
+            return try WorkspaceReference.create(for: folderURL)
         } catch {
             let alert = NSAlert(error: error)
             alert.messageText = "The folder could not be opened."
             alert.runModal()
+            return nil
         }
     }
+}
+
+struct WorkspaceOpenFolderAction {
+    let perform: () -> Void
+
+    func callAsFunction() {
+        perform()
+    }
+}
+
+private struct WorkspaceOpenFolderActionKey: FocusedValueKey {
+    typealias Value = WorkspaceOpenFolderAction
 }
 
 struct WorkspaceSaveAction {
@@ -54,6 +71,11 @@ private struct WorkspaceSaveActionKey: FocusedValueKey {
 }
 
 extension FocusedValues {
+    var workspaceOpenFolderAction: WorkspaceOpenFolderAction? {
+        get { self[WorkspaceOpenFolderActionKey.self] }
+        set { self[WorkspaceOpenFolderActionKey.self] = newValue }
+    }
+
     var workspaceSaveAction: WorkspaceSaveAction? {
         get { self[WorkspaceSaveActionKey.self] }
         set { self[WorkspaceSaveActionKey.self] = newValue }

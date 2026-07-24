@@ -7,7 +7,7 @@ import CryptoKit
 import Combine
 import Foundation
 
-struct WorkspaceReference: Codable, Hashable, Identifiable {
+nonisolated struct WorkspaceReference: Codable, Hashable, Identifiable {
     let id: UUID
     let bookmarkData: Data
 
@@ -269,14 +269,20 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
         id: UUID = UUID(),
         url: URL,
         text: String,
+        savedTextFingerprint: String? = nil,
+        storedViewMode: String = DocumentViewMode.editorAndPreview.rawValue,
+        editorScrollPosition: ScrollSyncPosition = .initial,
         editorPreviewSession: EditorPreviewSessionState? = nil
     ) {
         let fingerprint = Self.fingerprint(text)
         self.id = id
         self.url = url.standardizedFileURL
         self.text = text
-        self.editorPreviewSession = editorPreviewSession ?? EditorPreviewSessionState()
-        savedTextFingerprint = fingerprint
+        let session = editorPreviewSession ?? EditorPreviewSessionState()
+        session.editorScrollPosition = editorScrollPosition
+        self.editorPreviewSession = session
+        self.savedTextFingerprint = savedTextFingerprint ?? fingerprint
+        self.storedViewMode = storedViewMode
         currentTextFingerprint = fingerprint
     }
 
@@ -299,7 +305,7 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
         self.isSaving = isSaving
     }
 
-    private static func fingerprint(_ text: String) -> String {
+    static func fingerprint(_ text: String) -> String {
         SHA256.hash(data: Data(text.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
@@ -311,6 +317,11 @@ final class WorkspaceSession: ObservableObject {
     let rootURL: URL
     private let securityScopedAccess: SecurityScopedAccess?
     private let fileService: WorkspaceFileService
+    private let workspaceID: UUID?
+    private let recoveryStore: WorkspaceRecoveryStore?
+    private var recoverySaveTask: Task<Void, Never>?
+    private var bufferObservers: [OpenFileBuffer.ID: AnyCancellable] = [:]
+    private var isRestoringRecovery = false
 
     @Published private(set) var openFiles: [OpenFileBuffer] = []
     @Published var activeFileID: OpenFileBuffer.ID?
@@ -325,21 +336,44 @@ final class WorkspaceSession: ObservableObject {
 
     init(
         rootURL: URL,
-        fileService: WorkspaceFileService = WorkspaceFileService()
+        fileService: WorkspaceFileService = WorkspaceFileService(),
+        recoverySnapshot: WorkspaceRecoverySnapshot? = nil
     ) {
         self.rootURL = rootURL.standardizedFileURL
         securityScopedAccess = nil
         self.fileService = fileService
+        workspaceID = recoverySnapshot?.workspaceID
+        recoveryStore = nil
+        if let recoverySnapshot {
+            restore(recoverySnapshot)
+        }
     }
 
     init(
         reference: WorkspaceReference,
-        fileService: WorkspaceFileService = WorkspaceFileService()
-    ) throws {
+        fileService: WorkspaceFileService = WorkspaceFileService(),
+        recoveryStore: WorkspaceRecoveryStore = .shared
+    ) async throws {
         let access = try SecurityScopedAccess(reference: reference)
         rootURL = access.url
         securityScopedAccess = access
         self.fileService = fileService
+        workspaceID = reference.id
+        self.recoveryStore = recoveryStore
+        WorkspaceLaunchRestoration.shared.remember(
+            WorkspaceReference(
+                id: reference.id,
+                bookmarkData: access.refreshedBookmarkData ?? reference.bookmarkData
+            )
+        )
+        if let snapshot = try await recoveryStore.load(workspaceID: reference.id) {
+            restore(snapshot)
+            await reloadCleanRecoveredFiles()
+        }
+    }
+
+    deinit {
+        recoverySaveTask?.cancel()
     }
 
     var activeFile: OpenFileBuffer? {
@@ -364,6 +398,7 @@ final class WorkspaceSession: ObservableObject {
         defer { loadingDirectoryIDs.remove("") }
         do {
             rootNodes = try await fileService.children(of: rootURL, within: rootURL)
+            await loadRecoveredExpandedDirectories()
             treeErrorDescription = nil
         } catch {
             treeErrorDescription = error.localizedDescription
@@ -376,10 +411,12 @@ final class WorkspaceSession: ObservableObject {
         }
 
         if expandedDirectoryIDs.remove(node.id) != nil {
+            scheduleRecoverySave()
             return
         }
 
         expandedDirectoryIDs.insert(node.id)
+        scheduleRecoverySave()
         guard childrenByDirectoryID[node.id] == nil else {
             return
         }
@@ -398,6 +435,7 @@ final class WorkspaceSession: ObservableObject {
             treeErrorDescription = nil
         } catch {
             expandedDirectoryIDs.remove(node.id)
+            scheduleRecoverySave()
             treeErrorDescription = error.localizedDescription
         }
     }
@@ -410,6 +448,7 @@ final class WorkspaceSession: ObservableObject {
         let fileURL = rootURL.appendingPathComponent(node.relativePath)
         if let existing = openFiles.first(where: { $0.url == fileURL.standardizedFileURL }) {
             activeFileID = existing.id
+            scheduleRecoverySave()
             return
         }
         guard openingFileIDs.insert(node.id).inserted else {
@@ -484,12 +523,15 @@ final class WorkspaceSession: ObservableObject {
         let standardizedURL = url.standardizedFileURL
         if let existing = openFiles.first(where: { $0.url == standardizedURL }) {
             activeFileID = existing.id
+            scheduleRecoverySave()
             return existing
         }
 
         let buffer = OpenFileBuffer(url: standardizedURL, text: text)
         openFiles.append(buffer)
+        observe(buffer)
         activeFileID = buffer.id
+        scheduleRecoverySave()
         return buffer
     }
 
@@ -498,6 +540,7 @@ final class WorkspaceSession: ObservableObject {
             return
         }
         activeFileID = id
+        scheduleRecoverySave()
     }
 
     func closeDecision(for id: OpenFileBuffer.ID) -> WorkspaceBufferCloseDecision {
@@ -518,10 +561,26 @@ final class WorkspaceSession: ObservableObject {
 
         let wasActive = activeFileID == id
         openFiles.remove(at: index)
+        bufferObservers[id] = nil
         if wasActive {
             activeFileID = replacementActiveFileID(afterRemovingIndex: index)
         }
+        scheduleRecoverySave()
         return true
+    }
+
+    func setSidebarVisible(_ isVisible: Bool) {
+        guard sidebarVisible != isVisible else {
+            return
+        }
+        sidebarVisible = isVisible
+        scheduleRecoverySave()
+    }
+
+    func persistRecoveryNow() async {
+        recoverySaveTask?.cancel()
+        recoverySaveTask = nil
+        await saveRecoverySnapshot()
     }
 
     private func replacementActiveFileID(afterRemovingIndex index: Int) -> OpenFileBuffer.ID? {
@@ -545,5 +604,161 @@ final class WorkspaceSession: ObservableObject {
             }
             appendVisibleRows(children, depth: depth + 1, to: &rows)
         }
+    }
+
+    private func restore(_ snapshot: WorkspaceRecoverySnapshot) {
+        isRestoringRecovery = true
+        defer { isRestoringRecovery = false }
+
+        sidebarVisible = snapshot.sidebarVisible
+        expandedDirectoryIDs = Set(
+            snapshot.expandedDirectoryIDs.filter(Self.isSafeRelativePath)
+        )
+        openFiles = snapshot.openFiles.compactMap { recovered in
+            guard Self.isSafeRelativePath(recovered.relativePath) else {
+                return nil
+            }
+            let url = rootURL.appendingPathComponent(recovered.relativePath)
+            guard WorkspacePathPolicy.contains(url, within: rootURL) else {
+                return nil
+            }
+            let progress = recovered.editorScrollProgress.isFinite
+                ? min(max(recovered.editorScrollProgress, 0), 1)
+                : 0
+            return OpenFileBuffer(
+                id: recovered.id,
+                url: url,
+                text: recovered.text,
+                savedTextFingerprint: recovered.savedTextFingerprint,
+                storedViewMode: DocumentViewMode(
+                    rawValue: recovered.storedViewMode
+                )?.rawValue ?? DocumentViewMode.editorAndPreview.rawValue,
+                editorScrollPosition: ScrollSyncPosition(
+                    sourceLine: max(recovered.editorSourceLine, 1),
+                    progress: progress,
+                    generation: 0
+                )
+            )
+        }
+        openFiles.forEach(observe)
+        activeFileID = openFiles.contains(where: { $0.id == snapshot.activeFileID })
+            ? snapshot.activeFileID
+            : openFiles.last?.id
+    }
+
+    private func makeRecoverySnapshot() -> WorkspaceRecoverySnapshot? {
+        guard let workspaceID else {
+            return nil
+        }
+        let files = openFiles.compactMap { buffer -> WorkspaceBufferRecoverySnapshot? in
+            guard let relativePath = WorkspacePathPolicy.relativePath(
+                of: buffer.url,
+                within: rootURL
+            ), Self.isSafeRelativePath(relativePath) else {
+                return nil
+            }
+            let scroll = buffer.editorPreviewSession.editorScrollPosition
+            return WorkspaceBufferRecoverySnapshot(
+                id: buffer.id,
+                relativePath: relativePath,
+                text: buffer.text,
+                savedTextFingerprint: buffer.savedTextFingerprint,
+                storedViewMode: buffer.storedViewMode,
+                editorSourceLine: scroll.sourceLine,
+                editorScrollProgress: scroll.progress
+            )
+        }
+        return WorkspaceRecoverySnapshot(
+            workspaceID: workspaceID,
+            openFiles: files,
+            activeFileID: activeFileID,
+            sidebarVisible: sidebarVisible,
+            expandedDirectoryIDs: expandedDirectoryIDs
+        )
+    }
+
+    private func observe(_ buffer: OpenFileBuffer) {
+        bufferObservers[buffer.id] = buffer.objectWillChange.sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await Task.yield()
+                self?.scheduleRecoverySave()
+            }
+        }
+    }
+
+    private func scheduleRecoverySave() {
+        guard !isRestoringRecovery, recoveryStore != nil else {
+            return
+        }
+        recoverySaveTask?.cancel()
+        recoverySaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else {
+                return
+            }
+            await self?.saveRecoverySnapshot()
+        }
+    }
+
+    private func saveRecoverySnapshot() async {
+        guard let recoveryStore,
+              let snapshot = makeRecoverySnapshot() else {
+            return
+        }
+        do {
+            try await recoveryStore.save(snapshot)
+        } catch {
+            fileErrorDescription = "Recovery data could not be saved: \(error.localizedDescription)"
+        }
+    }
+
+    private func loadRecoveredExpandedDirectories() async {
+        let recoveredIDs = expandedDirectoryIDs.sorted {
+            $0.split(separator: "/").count < $1.split(separator: "/").count
+        }
+        for directoryID in recoveredIDs {
+            guard childrenByDirectoryID[directoryID] == nil,
+                  Self.isSafeRelativePath(directoryID) else {
+                continue
+            }
+            let directoryURL = rootURL.appendingPathComponent(
+                directoryID,
+                isDirectory: true
+            )
+            do {
+                childrenByDirectoryID[directoryID] = try await fileService.children(
+                    of: directoryURL,
+                    within: rootURL
+                )
+            } catch {
+                expandedDirectoryIDs.remove(directoryID)
+            }
+        }
+    }
+
+    private func reloadCleanRecoveredFiles() async {
+        isRestoringRecovery = true
+        defer { isRestoringRecovery = false }
+
+        for buffer in openFiles where !buffer.isDirty {
+            do {
+                let currentDiskText = try await fileService.loadMarkdown(
+                    at: buffer.url,
+                    within: rootURL
+                )
+                buffer.text = currentDiskText
+                buffer.markSaved()
+            } catch {
+                // Keep the recovered copy available if the file was moved or deleted.
+            }
+        }
+    }
+
+    nonisolated private static func isSafeRelativePath(_ path: String) -> Bool {
+        guard !path.isEmpty, !path.hasPrefix("/") else {
+            return false
+        }
+        return !path.split(separator: "/", omittingEmptySubsequences: false)
+            .contains { $0.isEmpty || $0 == "." || $0 == ".." }
     }
 }

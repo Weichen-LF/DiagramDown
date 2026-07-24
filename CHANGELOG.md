@@ -6,9 +6,27 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Planned
+## [0.22.0] - 2026-07-24
 
-- Post-release fixes and usability improvements based on community feedback
+### Added
+
+- Crash-safe workspace recovery for open tabs, active file, sidebar and tree state,
+  per-tab layout and scroll position, and unsaved edits
+- Automatic reopening of the most recently used folder workspace on application launch
+- Drag-to-Applications DMG packaging for Apple Silicon community releases
+
+### Changed
+
+- Replaced the separate `DocumentGroup` and workspace scenes with one folder-workspace
+  application scene; startup no longer presents the macOS single-file document browser
+- **Open Folder…** now replaces the current window's workspace and uses `Command-O`
+- Clean recovered workspace tabs reload their current on-disk contents, while dirty
+  tabs retain the unsaved recovery copy
+
+### Removed
+
+- Single-file document creation, Finder document associations, and the separate
+  `MarkdownDocument`/`ContentView` lifecycle
 
 ## [0.21.0] - 2026-07-24
 

@@ -1,5 +1,10 @@
 # macOS Markdown 编辑与预览工具技术方案
 
+> `0.22.0` 架构更新：DiagramDown 现在只使用文件夹工作区 Scene。下文中关于
+> `DocumentGroup`、`MarkdownDocument`、`ContentView`、Finder 单文件打开和
+> 未命名单文件窗口的内容属于早期 MVP 架构，现已由 `WorkspaceSceneView`、
+> `WorkspaceSession` 和 `OpenFileBuffer` 取代。
+
 ## 1. 方案结论
 
 采用以下组合：
@@ -1019,7 +1024,7 @@ Mermaid 为 MIT 许可，仍应在应用的 Third-Party Licenses 中保留版权
 
 直接通过签名和公证的 DMG 分发，通常比第一版直接进入 Mac App Store 更适合验证该架构。
 
-当前 0.17 的默认公开分发是 Apple Silicon Community Release：tag 工作流运行完整测试，生成 ad-hoc 签名、未经 Apple 公证的 ZIP，验证架构、Sandbox、Hardened Runtime、nested D2 签名和 license，随后创建带 SHA-256 文件的 GitHub Release。下载页必须明确说明 Gatekeeper 限制和安全的首次启动方法。Developer ID、公证和 staple 流程继续保留为未来可选增强，不再阻塞当前版本发布。当前发布门禁仅使用命令行和自动化检查，不使用 GUI 自动化；综合测试文档可供后续人工冒烟验证。
+当前默认公开分发是 Apple Silicon Community Release：tag 工作流运行完整测试，生成 ad-hoc 签名、未经 Apple 公证的 DMG（包含应用和 Applications 拖拽入口），验证架构、Sandbox、Hardened Runtime、nested D2 签名和 license，随后创建带 SHA-256 文件的 GitHub Release。下载页必须明确说明 Gatekeeper 限制和安全的首次启动方法。Developer ID、公证和 staple 流程继续保留为未来可选增强，不再阻塞当前版本发布。当前发布门禁仅使用命令行和自动化检查，不使用 GUI 自动化；综合测试文档可供后续人工冒烟验证。
 
 ---
 

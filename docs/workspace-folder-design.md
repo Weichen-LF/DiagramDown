@@ -1,24 +1,29 @@
 # DiagramDown folder workspace design
 
-> Implementation status: the `0.21.0` workspace MVP is complete. Folder restoration,
-> external-change handling, file operations, Quick Open, and search remain follow-up work.
+> Implementation status: the `0.21.0` workspace MVP is complete. For `0.22.0`,
+> DiagramDown uses one folder-workspace scene exclusively; the earlier `DocumentGroup`
+> compatibility path described in the historical sections below has been removed.
+> Workspace tab, active-file, tree, layout, scroll, and unsaved-text recovery are also
+> implemented. External-change handling, file operations, Quick Open, and search
+> remain follow-up work.
 
 ## 1. Goal
 
-Add a folder-based workspace alongside the current single-file document mode:
+Use a folder-based workspace as DiagramDown's only application mode:
 
-- Open a folder from **File > Open Folder…**
+- Open or replace the current folder from **File > Open Folder…**
 - Display a collapsible directory tree in a left sidebar
 - Open multiple Markdown files as tabs in one workspace window
 - Keep independent text, selection, scroll, undo, dirty, and preview state per file
 - Save, close, and restore files without losing edits
-- Continue to support opening an individual Markdown file from Finder or **File > Open…**
+- Reopen the most recently used folder on launch
+- Show an application-owned folder welcome screen when no prior folder is available
 
 The first implementation should feel closer to Sublime Text, Zed, and VS Code, but it should remain a Markdown editor rather than becoming a general-purpose IDE.
 
-## 2. Current architecture and constraint
+## 2. Previous architecture and constraint
 
-The application currently uses:
+The application originally used:
 
 - `DocumentGroup` as the main scene
 - a value-type `MarkdownDocument: FileDocument`
@@ -32,40 +37,36 @@ This model works well for one file per window. It is not a good owner for a dire
 - Each open file needs its own dirty and undo lifecycle.
 - `DocumentGroup` documentation advises not to read or write document contents through its `fileURL`, because SwiftUI owns that file lifecycle.
 
-Therefore the folder workspace should be a separate scene and state model rather than an extension of `MarkdownDocument`.
+The `0.21.0` implementation initially kept that document scene beside the workspace.
+User testing showed that `DocumentGroup` still presented its own file browser at launch,
+competing with folder restoration. The `0.22.0` direction therefore removes it and
+uses the workspace as the sole scene.
 
 ## 3. Chosen architecture
 
-Keep both entry points:
+Use one entry point:
 
 ```mermaid
 flowchart TD
     App[DiagramDownApp]
-    Single[DocumentGroup]
     Workspace[Workspace WindowGroup]
-    Document[MarkdownDocument]
     Session[WorkspaceSession]
     Tree[WorkspaceTree]
     Buffers[OpenFileBuffer collection]
     Surface[Reusable EditorPreviewSurface]
 
-    App --> Single
     App --> Workspace
-    Single --> Document
-    Document --> Surface
     Workspace --> Session
     Session --> Tree
     Session --> Buffers
     Buffers --> Surface
 ```
 
-### Single-file mode
-
-Retain `DocumentGroup(newDocument: MarkdownDocument())`. Existing Finder integration, new documents, Save As, and single-file autosave continue to work.
-
 ### Workspace mode
 
-Add a value-driven `WindowGroup` for workspace windows. **Open Folder…** obtains a folder through `NSOpenPanel`, creates a security-scoped bookmark, and opens a workspace window using a lightweight workspace reference.
+Use a standard `WindowGroup` whose root is `WorkspaceSceneView`. On launch it resolves
+the last security-scoped folder reference in the same window. **Open Folder…** obtains
+a folder through `NSOpenPanel` and replaces the current window's workspace.
 
 The workspace owns file reads and writes directly. It must not route workspace files through the existing `DocumentGroup`.
 
@@ -186,7 +187,7 @@ Show all regular files in the tree, but the first MVP only opens `.md` and `.mar
 
 ## 6. Reusing the current editor and preview
 
-Extract the middle of `ContentView` into a reusable surface:
+Use the extracted editor and preview surface for each workspace buffer:
 
 ```swift
 struct EditorPreviewSurface: View {
@@ -198,7 +199,6 @@ struct EditorPreviewSurface: View {
 
 Adapters:
 
-- `ContentView` supplies the existing `MarkdownDocument` binding.
 - `WorkspaceContentView` supplies the active `OpenFileBuffer` binding.
 
 The extraction must include the current features rather than fork them:
@@ -290,8 +290,8 @@ Rules:
 | --- | --- | --- |
 | Treat a folder as one `FileDocument` | Reject | Incorrect save semantics and one dirty state for many files |
 | Open every tree file in a separate `DocumentGroup` window | Reject for workspace tabs | Does not produce one IDE-like workspace window |
-| Replace `DocumentGroup` completely with `WindowGroup` | Defer | Would regress mature single-file lifecycle and Finder behavior |
-| Keep `DocumentGroup` and add a workspace `WindowGroup` | Choose | Incremental, preserves compatibility, and gives the workspace full control |
+| Replace `DocumentGroup` completely with `WindowGroup` | Choose for 0.22.0 | Gives startup and restoration one unambiguous folder-workspace lifecycle |
+| Keep `DocumentGroup` and add a workspace `WindowGroup` | Superseded after 0.21.0 | The document browser competed with automatic workspace restoration |
 | Use recursive eager enumeration | Reject | Slow and memory-heavy for large folders |
 | Use one shared text view and undo manager for all tabs | Reject | Cross-file undo and state leakage risk |
 
@@ -299,7 +299,7 @@ Rules:
 
 ### 0.21.0 — workspace MVP (implemented)
 
-1. Extract `EditorPreviewSurface` without changing single-file behavior.
+1. Extract `EditorPreviewSurface` for reuse by workspace buffers.
 2. Add `WorkspaceReference`, security-scoped bookmark handling, and workspace `WindowGroup`.
 3. Add **Open Folder…** and create one workspace window.
 4. Implement lazy, read-only directory tree browsing.
@@ -318,16 +318,29 @@ MVP exclusions:
 - no automatic save
 - no drag-and-drop reordering
 
-### 0.22.0 — reliability and restoration (planned)
+### 0.22.0 — restoration (implemented)
 
-- Restore recent folders and open tabs from security-scoped bookmarks
+- Restore workspace windows through the codable security-scoped folder reference
+- Explicitly reopen the most recently used workspace at launch instead of depending
+  only on macOS window restoration preferences
+- Persist open tabs, tab order, active file, sidebar state, expanded directories,
+  per-tab layout and editor scroll position
+- Persist both clean content and unsaved edits in atomic Application Support snapshots
 - Save All
+
+Recovery snapshots contain document text and therefore remain inside DiagramDown's
+sandboxed Application Support container. They are updated after a short debounce and
+flushed when the workspace view disappears. Paths are stored relative to the authorized
+workspace root and rejected if they contain traversal components.
+
+### 0.23.0 — workspace reliability and file operations (planned)
+
 - External file change and deletion handling
 - Directory change observation
 - File creation, rename, and delete with confirmation
 - Sidebar reveal and refresh commands
 
-### 0.23.0 — workspace productivity (planned)
+### 0.24.0 — workspace productivity (planned)
 
 - Quick Open
 - Workspace text search
@@ -337,7 +350,7 @@ MVP exclusions:
 
 ## 12. MVP acceptance criteria
 
-- Existing single-file tests and workflows remain unchanged.
+- Startup never presents the system single-file document browser.
 - A user can select a folder and see its first directory level without recursive scanning.
 - Expanding a directory loads its children asynchronously.
 - At least ten Markdown files can be opened as tabs in one workspace window.
@@ -351,7 +364,9 @@ MVP exclusions:
 
 ## 13. Recommended next step
 
-Start 0.21.0 with the editor-surface extraction and an in-memory workspace model test. Do not begin with the directory-tree UI: the highest-risk work is preserving per-file editor, undo, preview, and dirty state while reusing the current single-file surface.
+The implemented sequence started with editor-surface extraction and an in-memory
+workspace model test. The `0.22.0` follow-up removes the remaining single-file scene
+after workspace restoration and multi-buffer lifecycle tests are in place.
 
 After that foundation passes existing tests, add the folder picker and lazy tree as a vertical slice: open folder → expand tree → open two files → edit both → switch tabs → save one → close with confirmation.
 

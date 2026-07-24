@@ -15,6 +15,7 @@ build/
 DerivedData/
 *.hmap
 *.ipa
+*.dmg
 *.xcarchive
 *.dSYM
 *.dSYM.zip

@@ -31,15 +31,15 @@ GUI automation and Computer Use are not part of this release gate. The combined 
 Create and push an annotated tag from the merged `main` commit:
 
 ```sh
-git tag -a v0.21.0 -m "Release DiagramDown 0.21.0"
-git push origin v0.21.0
+git tag -a v0.22.0 -m "Release DiagramDown 0.22.0"
+git push origin v0.22.0
 ```
 
 The `Release` GitHub Actions workflow will rerun tests, build the package, validate it, and create the GitHub Release.
 
 - [ ] Confirm the workflow succeeds.
 - [ ] Confirm the Release is public and is not marked as a draft or prerelease.
-- [ ] Confirm both `DiagramDown-<version>-arm64.zip` and its `.sha256` file are attached.
+- [ ] Confirm both `DiagramDown-<version>-arm64.dmg` and its `.sha256` file are attached.
 - [ ] Confirm the release notes render the unnotarized-build warning prominently.
 
 ## 5. Verify the published assets
@@ -47,11 +47,11 @@ The `Release` GitHub Actions workflow will rerun tests, build the package, valid
 Download the published files into a temporary directory and run:
 
 ```sh
-shasum -a 256 -c DiagramDown-0.21.0-arm64.zip.sha256
+shasum -a 256 -c DiagramDown-<version>-arm64.dmg.sha256
 ```
 
 - [ ] Confirm the checksum reports `OK`.
-- [ ] Confirm `gh release view v0.21.0` reports the intended tag, title, notes, and assets.
+- [ ] Confirm `gh release view v0.22.0` reports the intended tag, title, notes, and assets.
 - [ ] Confirm the README's latest-release link resolves to the new release.
 
 ## 6. After publication

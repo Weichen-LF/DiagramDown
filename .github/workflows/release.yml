@@ -51,7 +51,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           gh release create "$GITHUB_REF_NAME" \
-            "${{ steps.package.outputs.zip_path }}" \
+            "${{ steps.package.outputs.dmg_path }}" \
             "${{ steps.package.outputs.checksum_path }}" \
             --verify-tag \
             --title "DiagramDown $version" \
