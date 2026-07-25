@@ -79,8 +79,6 @@ main_executable="$app_path/Contents/MacOS/$executable_name"
 
 for license_name in \
   LICENSE \
-  Prettier-LICENSE.txt \
-  Prettier-THIRD-PARTY-NOTICES.txt \
   SwiftMarkdown-LICENSE.txt \
   SwiftCMark-LICENSE.txt \
   SwiftTreeSitter-LICENSE.txt \
@@ -96,19 +94,17 @@ do
   [[ -f "$app_path/Contents/Resources/$license_name" ]] || fail "Missing bundled license: $license_name"
 done
 
-for runtime_name in formatter.js prettier.js markdown.js; do
-  [[ -f "$app_path/Contents/Resources/$runtime_name" ]] || fail "Missing bundled runtime asset: $runtime_name"
-done
-
 for removed_runtime_name in \
   preview.html preview.css preview.js markdown-it.min.js highlight.min.js \
-  formatter.html renderer.html renderer.js mermaid.min.js
+  formatter.html formatter.js prettier.js markdown.js babel.js estree.js \
+  typescript.js html.js postcss.js yaml.js renderer.html renderer.js mermaid.min.js
 do
   [[ ! -e "$app_path/Contents/Resources/$removed_runtime_name" ]] || fail "Legacy preview runtime is still bundled: $removed_runtime_name"
 done
 
 linked_frameworks="$(otool -L "$main_executable")"
 [[ "$linked_frameworks" != *"WebKit.framework"* ]] || fail "The application still links WebKit."
+[[ "$linked_frameworks" != *"JavaScriptCore.framework"* ]] || fail "The application still links JavaScriptCore."
 [[ "$linked_frameworks" != *"SVGView"* ]] || fail "The application still links SVGView."
 
 for grammar_bundle in \

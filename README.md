@@ -34,8 +34,8 @@ write naturally in Markdown, and see the finished document update beside you.
 Mermaid and D2 fenced blocks become live diagrams through command-line tools
 installed on your Mac, without a server or cloud account.
 
-The native SwiftUI preview, Tree-sitter syntax highlighting, and formatting
-runtime are bundled with the app. DiagramDown calls local `mmdc` and `d2`
+The native SwiftUI preview, Tree-sitter syntax highlighting, and Swift Markdown
+formatter are bundled with the app. DiagramDown calls local `mmdc` and `d2`
 executables directly; your documents stay on your Mac.
 
 ## Made for real Markdown projects
@@ -60,7 +60,7 @@ or **Preview Only**.
 For diagram previews, install either or both optional tools:
 
 ```sh
-brew install mermaid-cli
+npm install -g @mermaid-js/mermaid-cli
 brew install d2
 ```
 
@@ -92,7 +92,6 @@ Requirements:
 - macOS 15 or later
 - Apple Silicon
 - Xcode with the macOS SDK
-- Node.js 18 or later for formatter-runtime tests
 
 Open `Mark.xcodeproj` and run the `Mark` scheme, or use:
 

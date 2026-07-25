@@ -121,6 +121,112 @@ final class NativePreviewParsingTests: XCTestCase {
     }
 }
 
+final class PreviewDocumentReconcilerTests: XCTestCase {
+    func testExactMatchesSurviveDeletionAndReordering() {
+        let previous = [
+            makeBlock(id: "old-a", line: 1, fingerprint: "a"),
+            makeBlock(id: "old-b", line: 3, fingerprint: "b"),
+            makeBlock(id: "old-c", line: 5, fingerprint: "c"),
+        ]
+        let updated = [
+            makeBlock(id: "new-c", line: 1, fingerprint: "c"),
+            makeBlock(id: "new-a", line: 3, fingerprint: "a"),
+        ]
+
+        let reconciled = PreviewDocumentReconciler().reconcile(
+            newBlocks: updated,
+            previousBlocks: previous
+        )
+
+        XCTAssertEqual(reconciled.map(\.id.rawValue), ["old-c", "old-a"])
+    }
+
+    func testDuplicateFingerprintsAreMatchedOnceInDocumentOrder() {
+        let previous = (0..<100).map {
+            makeBlock(id: "old-\($0)", line: $0 * 2 + 1, fingerprint: "same")
+        }
+        let updated = (0..<101).map {
+            makeBlock(id: "new-\($0)", line: $0 * 2 + 1, fingerprint: "same")
+        }
+
+        let reconciled = PreviewDocumentReconciler().reconcile(
+            newBlocks: updated,
+            previousBlocks: previous
+        )
+
+        XCTAssertEqual(
+            reconciled.prefix(100).map(\.id.rawValue),
+            (0..<100).map { "old-\($0)" }
+        )
+        XCTAssertEqual(reconciled.last?.id.rawValue, "new-100")
+        XCTAssertEqual(Set(reconciled.map(\.id)).count, reconciled.count)
+    }
+
+    func testEditedBlocksReuseOverlappingIDsByKind() {
+        let previous = [
+            makeBlock(id: "old-1", line: 1, fingerprint: "before-1"),
+            makeBlock(id: "old-2", line: 4, fingerprint: "before-2"),
+        ]
+        let updated = [
+            makeBlock(id: "new-1", line: 1, fingerprint: "after-1"),
+            makeBlock(id: "new-2", line: 4, fingerprint: "after-2"),
+        ]
+
+        let reconciled = PreviewDocumentReconciler().reconcile(
+            newBlocks: updated,
+            previousBlocks: previous
+        )
+
+        XCTAssertEqual(reconciled.map(\.id.rawValue), ["old-1", "old-2"])
+    }
+
+    func testTenThousandRepeatedBlocksCompleteWithoutQuadraticScan() {
+        let previous = (0..<10_000).map {
+            makeBlock(
+                id: "old-\($0)",
+                line: $0 * 2 + 1,
+                fingerprint: "fingerprint-\($0 % 25)"
+            )
+        }
+        let updated = (0..<10_000).map {
+            makeBlock(
+                id: "new-\($0)",
+                line: $0 * 2 + 2,
+                fingerprint: "fingerprint-\($0 % 25)"
+            )
+        }
+
+        let start = ContinuousClock.now
+        let reconciled = PreviewDocumentReconciler().reconcile(
+            newBlocks: updated,
+            previousBlocks: previous
+        )
+        let elapsed = start.duration(to: .now)
+
+        XCTAssertEqual(reconciled.count, 10_000)
+        XCTAssertEqual(Set(reconciled.map(\.id)).count, reconciled.count)
+        XCTAssertLessThan(elapsed, .seconds(5))
+    }
+
+    private func makeBlock(
+        id: String,
+        line: Int,
+        fingerprint: String
+    ) -> PreviewBlock {
+        PreviewBlock(
+            id: PreviewBlockID(rawValue: id),
+            sourceRange: PreviewSourceRange(
+                startLine: line,
+                startColumn: 1,
+                endLine: line,
+                endColumn: 10
+            ),
+            content: .rawText(fingerprint),
+            fingerprint: fingerprint
+        )
+    }
+}
+
 final class NativePreviewSafetyTests: XCTestCase {
     func testPreviewLinksAllowOnlyExplicitExternalSchemes() {
         XCTAssertNotNil(SafePreviewURL.link("https://example.com/path"))
@@ -303,6 +409,30 @@ final class NativePreviewHighlightingTests: XCTestCase {
             XCTAssertGreaterThan(highlighted.runs.count, 1, "\(language)")
         }
     }
+
+    func testHighlightCacheReportsCostAndCanBePurged() async {
+        let highlighter = TreeSitterCodeHighlighter()
+        let theme = CodeTheme.resolved(
+            markdownTheme: .diagramDown,
+            appearance: .light
+        )
+
+        _ = await highlighter.highlight(
+            source: "struct Cached { let value = 42 }",
+            language: .swift,
+            theme: theme
+        )
+        let populated = await highlighter.cacheStatistics()
+        XCTAssertEqual(populated.entryCount, 1)
+        XCTAssertGreaterThan(populated.estimatedBytes, 0)
+
+        await highlighter.purgeCaches()
+        let purged = await highlighter.cacheStatistics()
+        XCTAssertEqual(
+            purged,
+            PreviewCacheStatistics(entryCount: 0, estimatedBytes: 0)
+        )
+    }
 }
 
 final class NativePreviewDiagramTests: XCTestCase {
@@ -375,6 +505,40 @@ final class NativePreviewDiagramTests: XCTestCase {
         XCTAssertEqual(first.cacheKey, second.cacheKey)
         XCTAssertEqual(first.document.digest, second.document.digest)
         XCTAssertNotEqual(first.cacheKey, dark.cacheKey)
+    }
+
+    func testDiagramMemoryCacheReportsCostAndCanBePurged() async throws {
+        let fixture = try makeFakeMermaidCLI()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let coordinator = DiagramRenderCoordinator(
+            toolRegistry: DiagramToolRegistry(
+                automaticDirectories: [fixture.directory]
+            )
+        )
+
+        _ = try await coordinator.render(
+            DiagramRenderRequest(
+                blockID: PreviewBlockID(rawValue: "cache"),
+                revision: 1,
+                kind: .mermaid,
+                source: "flowchart LR\n  Cache --> Purge",
+                configuration: DiagramConfiguration(
+                    mermaidTheme: .default,
+                    appearance: "light",
+                    d2: .preview
+                )
+            )
+        )
+        let populated = await coordinator.cacheStatistics()
+        XCTAssertEqual(populated.entryCount, 1)
+        XCTAssertGreaterThan(populated.estimatedBytes, 0)
+
+        await coordinator.purgeCaches()
+        let purged = await coordinator.cacheStatistics()
+        XCTAssertEqual(
+            purged,
+            PreviewCacheStatistics(entryCount: 0, estimatedBytes: 0)
+        )
     }
 
     private func makeFakeMermaidCLI() throws -> (directory: URL, executable: URL) {

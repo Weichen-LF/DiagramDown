@@ -1,6 +1,6 @@
 # DiagramDown 原生 Markdown 预览迁移方案
 
-> **2026-07 更新：** 原生 Markdown 预览迁移已经完成，最终的图表架构又进一步改为调用用户本机的 `mmdc` 和 `d2`。应用不再集成 Mermaid、D2、SVGView 或任何 WKWebView。当前实现以
+> **2026-07 更新：** 原生 Markdown 预览迁移已经完成，最终的图表架构又进一步改为调用用户本机的 `mmdc` 和 `d2`。应用不再集成 Mermaid、D2、SVGView、Prettier、JavaScriptCore 或任何 WKWebView；文档格式化使用 `swift-markdown`。当前实现以
 > [`native-markdown-preview-architecture.md`](native-markdown-preview-architecture.md)
 > 为准；本文保留为原始迁移设计记录。
 
@@ -2087,7 +2087,9 @@ Golden test不要依赖具体颜色值，可先比较 normalized token ranges，
 
 ## 26. 性能基线和验收指标
 
-先测旧实现，再以相对指标验收。
+当前分支已删除旧 WebKit 实现，因此只记录当前原生管线的绝对指标，不为
+制造相对基线而恢复旧实现。2026-07-25 的完整结果见
+`docs/native-preview-migration-notes.md`。
 
 ### 26.1 场景
 
@@ -2095,7 +2097,10 @@ Golden test不要依赖具体颜色值，可先比较 normalized token ranges，
 |---|---|
 | Small | 20 KB，普通 Markdown |
 | Medium | 200 KB，混合 Markdown/代码 |
+| Medium-large | 500 KB，混合 Markdown/代码 |
 | Large | 2 MB，长文档 |
+| Single code | 2 MB，单个 fenced code block |
+| High structure | 2 MB，数千个结构块 |
 | Code-heavy | 50 个代码块 |
 | Diagram-heavy | 20 Mermaid + 20 D2 |
 | Rapid edits | 10 次/秒输入 |
@@ -2104,26 +2109,25 @@ Golden test不要依赖具体颜色值，可先比较 normalized token ranges，
 ### 26.2 必须满足
 
 - parse/highlight/diagram source processing 不在主线程。
-- 普通文档首次可见内容不等待 Mermaid runtime。
+- 普通文档首次可见内容不等待任何外部 CLI。
 - 新 revision 不应用旧 revision 结果。
-- 对没有 Mermaid 的文档，不启动 Mermaid runtime，或延迟到第一个 Mermaid block 出现。
+- 仅在遇到 Mermaid/D2 block 时调用对应的本机 CLI。
 - 代码和 diagram cache 命中不重复执行 parser/renderer。
 - `LazyVStack` 不造成点击定位和 PDF 内容缺失。
-- 普通 Markdown 编辑延迟不差于旧实现超过 10%。
-- 无持续增长的 AST、AttributedString、SVG 或 WebKit request 泄漏。
+- 高 block 数量 reconciliation 不允许退化为逐 block 全量扫描。
+- 无持续增长的 AST、AttributedString 或 SVG 缓存；超时和取消后无遗留 CLI 子进程。
 
 ### 26.3 观察目标
 
 这些是优化目标，不是第一版硬门槛：
 
-- 普通文档总内存下降 20% 或更多
 - 首次预览更快
 - Medium 文档 parse/model p95 小于 100 ms
 - 已缓存 code block 恢复接近即时
-- 非 Mermaid 文档不产生 WebContent process
 - grammar 增加的 release 包体在可接受范围内
 
-如实际结果与目标不同，记录原因和 profile，而不是通过隐藏功能退化来满足数字。
+旧 WebKit 管线已经删除，不恢复旧实现制造相对基线。如实际结果与目标
+不同，记录原因和 profile，而不是通过隐藏功能退化来满足数字。
 
 ---
 
@@ -2249,66 +2253,71 @@ Golden test不要依赖具体颜色值，可先比较 normalized token ranges，
 
 ### 架构
 
-- [ ] Markdown 使用 `swift-markdown`
-- [ ] AST 转为 `PreviewDocument`
-- [ ] 可见预览完全 SwiftUI 原生
-- [ ] 代码高亮使用 Tree-sitter
-- [ ] D2 直接调用原生服务
-- [ ] Mermaid 仅通过隐藏服务生成 SVG
-- [ ] SVG 在原生 View 中显示
-- [ ] PDF 使用原生打印管线
+- [x] Markdown 使用 `swift-markdown`
+- [x] AST 转为 `PreviewDocument`
+- [x] 可见预览完全 SwiftUI 原生
+- [x] 代码高亮使用 Tree-sitter
+- [x] D2 通过用户本机 `d2` CLI 生成 SVG
+- [x] Mermaid 通过用户本机 `mmdc` CLI 生成 SVG
+- [x] SVG 在原生 View 中显示
+- [x] PDF 使用原生打印管线
+- [x] Markdown 格式化使用 `swift-markdown`
 
 ### 功能
 
-- [ ] Markdown 常用语法完整
-- [ ] GFM 表格、删除线、任务列表
-- [ ] 代码高亮
-- [ ] Mermaid
-- [ ] D2
-- [ ] themes
-- [ ] light/dark/system
-- [ ] zoom
-- [ ] scroll sync
-- [ ] click-to-source
-- [ ] diagram viewer
-- [ ] SVG export
-- [ ] PDF export
-- [ ] tab state restoration
+- [x] Markdown 常用语法完整
+- [x] GFM 表格、删除线、任务列表
+- [x] 代码高亮
+- [x] Mermaid
+- [x] D2
+- [x] themes
+- [x] light/dark/system
+- [x] zoom
+- [x] scroll sync
+- [x] click-to-source
+- [x] diagram viewer
+- [x] SVG export
+- [x] PDF export
+- [x] tab state restoration
 
 ### 安全
 
-- [ ] raw HTML 不执行
-- [ ] links allowlist
-- [ ] local resource containment
-- [ ] Mermaid 无网络
-- [ ] D2 不通过 shell
-- [ ] SVG sanitation
-- [ ] diagnostics 不含文档内容
+- [x] raw HTML 不执行
+- [x] links allowlist
+- [x] local resource containment
+- [x] Mermaid 仅通过参数数组调用本机 CLI
+- [x] D2 不通过 shell
+- [x] SVG sanitation
+- [x] diagnostics 不含文档内容
 
 ### 性能
 
-- [ ] parser 不在主线程
-- [ ] highlighter 不在主线程
-- [ ] diagram render 不阻塞 UI
-- [ ] stale result rejection
-- [ ] block-level stable IDs
-- [ ] code cache
-- [ ] diagram memory/disk cache
-- [ ] large-document benchmark
+- [x] parser 不在主线程
+- [x] highlighter 不在主线程
+- [x] diagram render 不阻塞 UI
+- [x] stale result rejection
+- [x] block-level stable IDs
+- [x] code cache
+- [x] diagram memory/disk cache
+- [x] memory pressure 主动清理 code/diagram cache
+- [x] high-block reconciliation 无二次复杂度
+- [x] large-document benchmark
 - [ ] no reproducible memory leak
 
 ### 清理
 
-- [ ] 删除 markdown-it
-- [ ] 删除 highlight.js
-- [ ] 删除可见 preview HTML/JS/CSS
-- [ ] 删除 D2 Web bridge
-- [ ] 删除 JS scroll sync
-- [ ] 删除旧 PDF/SVG DOM export
-- [ ] Mermaid runtime 移入独立资源目录
-- [ ] 更新 licenses
-- [ ] 更新 architecture docs
-- [ ] 更新 release validation
+- [x] 删除 markdown-it
+- [x] 删除 highlight.js
+- [x] 删除可见 preview HTML/JS/CSS
+- [x] 删除 D2 Web bridge
+- [x] 删除 JS scroll sync
+- [x] 删除旧 PDF/SVG DOM export
+- [x] 删除 WebKit 和 JavaScriptCore
+- [x] 删除内置 Mermaid/D2 runtime
+- [x] 删除 Prettier runtime 和许可证
+- [x] 更新 licenses
+- [x] 更新 architecture docs
+- [x] 更新 release validation
 
 ---
 
@@ -2322,7 +2331,8 @@ Golden test不要依赖具体颜色值，可先比较 normalized token ranges，
 4. Mermaid 与 D2 的常用 fixture 均能正确显示。
 5. 旧版本的主题、缩放、同步、SVG 导出和 PDF 导出能力均被保留。
 6. 旧 Markdown Web preview 代码和资源已删除。
-7. Mermaid 的隐藏 renderer 是唯一保留的 WebKit 使用点。
+7. Mermaid 和 D2 仅通过用户本机 CLI 渲染；工具缺失时安全回退源码。
 8. 全部自动测试、release validation 和 security tests 通过。
-9. 性能和内存结果已与旧实现对比并记录。
+9. 性能结果和独立的 Instruments 内存观察已记录，不恢复旧 WebKit
+   实现制造相对基线。
 10. `README`、架构文档、打包文档和许可证清单已更新。

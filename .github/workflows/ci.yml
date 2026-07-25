@@ -26,14 +26,8 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
       - name: Show toolchain versions
         run: |
-          node --version
           xcodebuild -version
           swift --version
 

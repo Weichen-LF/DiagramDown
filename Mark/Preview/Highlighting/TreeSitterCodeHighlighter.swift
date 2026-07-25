@@ -28,6 +28,19 @@ actor TreeSitterCodeHighlighter: CodeHighlighting {
     private let maximumCacheCost = 32 * 1_024 * 1_024
     private let maximumHighlightBytes = 2 * 1_024 * 1_024
 
+    func cacheStatistics() -> PreviewCacheStatistics {
+        PreviewCacheStatistics(
+            entryCount: cache.count,
+            estimatedBytes: cacheCost
+        )
+    }
+
+    func purgeCaches() {
+        cache.removeAll(keepingCapacity: false)
+        cacheCost = 0
+        accessCounter = 0
+    }
+
     func highlight(
         source: String,
         language: CodeLanguage?,

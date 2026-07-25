@@ -270,12 +270,6 @@ struct PreviewSettingsView: View {
                 Text("Not installed. Diagrams of this type are shown as code blocks.")
                     .font(.subheadline)
                 installCommandRow(kind.installCommand)
-                if kind == .mermaid {
-                    Text("Upstream alternative: npm install -g @mermaid-js/mermaid-cli")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
             case .invalid(let path, let message):
                 Text(message)
                     .font(.subheadline)

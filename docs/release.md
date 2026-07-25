@@ -12,7 +12,6 @@ Prerequisites:
 
 - an Apple Silicon Mac
 - Xcode with the macOS 15 SDK or later
-- Node.js 18 or later
 - a clean Git worktree
 
 Create the public release package:
@@ -78,9 +77,9 @@ Validation covers:
 - absence of App Sandbox and obsolete WebKit network entitlements
 - exact ad-hoc signature status
 - bundled project and third-party license texts
-- bundled Prettier and Tree-sitter query resources
-- absence of WebKit linkage, Mermaid browser assets, D2 helpers, SVGView,
-  markdown-it, and highlight.js
+- bundled Swift Markdown and Tree-sitter licenses and query resources
+- absence of WebKit/JavaScriptCore linkage, Prettier, Mermaid browser assets,
+  D2 helpers, SVGView, markdown-it, and highlight.js
 
 ## Optional future notarized distribution
 
@@ -93,5 +92,6 @@ user-installed diagram tools requires App Sandbox to remain disabled.
 
 The release pipeline intentionally performs command-line and automated
 validation only. Before publishing, manually test `docs/examples/all-features.md`
-once with neither CLI installed and once with current Homebrew `mermaid-cli` and
-`d2` installations.
+once with neither CLI installed and once with the current Mermaid CLI installed
+through `npm install -g @mermaid-js/mermaid-cli` and D2 installed through
+`brew install d2`.

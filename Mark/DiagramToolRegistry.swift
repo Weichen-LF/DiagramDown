@@ -34,7 +34,7 @@ nonisolated enum DiagramToolKind: String, CaseIterable, Identifiable, Sendable {
 
     var installCommand: String {
         switch self {
-        case .mermaid: "brew install mermaid-cli"
+        case .mermaid: "npm install -g @mermaid-js/mermaid-cli"
         case .d2: "brew install d2"
         }
     }

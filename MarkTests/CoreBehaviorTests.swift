@@ -726,18 +726,66 @@ final class D2FormattingTests: XCTestCase {
     }
 }
 
-@MainActor
 final class MarkdownFormattingServiceTests: XCTestCase {
-    func testBundledFormatterRunsWithoutWebKit() async throws {
+    func testSwiftMarkdownFormatterCanonicalizesMarkupAndPreservesFencedCode() async throws {
+        let source = """
+        #  Heading
+
+        - [x]  shipped
+
+        | Name |State|
+        |---|---|
+        | Mark | ready |
+
+        ~~done~~
+
+        <kbd>raw</kbd>
+
+        ```
+        untouched    code
+        ```
+
+        ```json
+        {"ok":true}
+        ```
+
+        ```mermaid
+        flowchart LR
+          A --> B
+        ```
+        """
         let formatted = try await MarkdownFormattingService.shared.format(
-            "#  Heading\n\n```json\n{\"ok\":true}\n```\n"
+            source
         )
+
         XCTAssertTrue(formatted.contains("# Heading"))
-        XCTAssertTrue(formatted.contains(#"{ "ok": true }"#))
+        XCTAssertTrue(formatted.contains("- [x] shipped"))
+        XCTAssertTrue(formatted.contains("Name"))
+        XCTAssertTrue(formatted.contains("State"))
+        XCTAssertTrue(formatted.contains("~done~"))
+        XCTAssertTrue(formatted.contains("<kbd>raw</kbd>"))
+        XCTAssertTrue(formatted.contains("untouched    code"))
+        XCTAssertTrue(formatted.contains(#"{"ok":true}"#))
+        XCTAssertTrue(formatted.contains("flowchart LR\n  A --> B"))
+    }
+
+    func testSwiftMarkdownFormattingIsIdempotent() async throws {
+        let source = "#  Heading\n\n- first\n- second\n\n```json\n{\"ok\":true}\n```\n"
+        let first = try await MarkdownFormattingService.shared.format(source)
+        let second = try await MarkdownFormattingService.shared.format(first)
+        XCTAssertEqual(second, first)
     }
 }
 
 final class DiagramToolRegistryTests: XCTestCase {
+    func testInstallCommandsUseSupportedDistributionChannels() {
+        XCTAssertEqual(
+            DiagramToolKind.mermaid.installCommand,
+            "npm install -g @mermaid-js/mermaid-cli"
+        )
+        XCTAssertEqual(DiagramToolKind.d2.installCommand, "brew install d2")
+    }
+
     func testAutomaticSearchIgnoresRelativePATHEntries() {
         let directories = DiagramToolRegistry.defaultSearchDirectories(
             environment: ["PATH": "relative/bin:/absolute/bin"]

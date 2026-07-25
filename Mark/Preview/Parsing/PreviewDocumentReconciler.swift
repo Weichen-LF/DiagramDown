@@ -14,46 +14,83 @@ nonisolated struct PreviewDocumentReconciler {
             return newBlocks
         }
 
-        var claimed = Set<PreviewBlockID>()
-        return newBlocks.map { block in
-            if let exact = nearestMatch(
-                for: block,
-                in: previousBlocks,
-                claimed: claimed,
-                where: { $0.fingerprint == block.fingerprint }
-            ) {
-                claimed.insert(exact.id)
-                return block.replacingID(exact.id)
-            }
-
-            if let overlapping = nearestMatch(
-                for: block,
-                in: previousBlocks,
-                claimed: claimed,
-                where: {
-                    $0.content.kind == block.content.kind
-                        && $0.sourceRange.overlaps(block.sourceRange)
-                }
-            ) {
-                claimed.insert(overlapping.id)
-                return block.replacingID(overlapping.id)
-            }
-
-            return block
+        var previousByFingerprint: [String: [Int]] = [:]
+        for (index, block) in previousBlocks.enumerated() {
+            previousByFingerprint[block.fingerprint, default: []].append(index)
         }
-    }
 
-    private func nearestMatch(
-        for block: PreviewBlock,
-        in candidates: [PreviewBlock],
-        claimed: Set<PreviewBlockID>,
-        where predicate: (PreviewBlock) -> Bool
-    ) -> PreviewBlock? {
-        candidates
-            .filter { !claimed.contains($0.id) && predicate($0) }
-            .min {
-                abs($0.sourceRange.startLine - block.sourceRange.startLine)
-                    < abs($1.sourceRange.startLine - block.sourceRange.startLine)
+        var fingerprintCursors: [String: Int] = [:]
+        var claimedPrevious = Set<Int>()
+        var matches: [Int: PreviewBlockID] = [:]
+
+        // Exact content matches are paired in document order. This makes
+        // duplicate blocks deterministic without repeatedly scanning all old
+        // blocks.
+        for (newIndex, block) in newBlocks.enumerated() {
+            let cursor = fingerprintCursors[block.fingerprint, default: 0]
+            guard let candidates = previousByFingerprint[block.fingerprint],
+                  cursor < candidates.count else {
+                continue
             }
+            let previousIndex = candidates[cursor]
+            fingerprintCursors[block.fingerprint] = cursor + 1
+            claimedPrevious.insert(previousIndex)
+            matches[newIndex] = previousBlocks[previousIndex].id
+        }
+
+        var previousByKind: [String: [Int]] = [:]
+        for (index, block) in previousBlocks.enumerated()
+        where !claimedPrevious.contains(index) {
+            previousByKind[block.content.kind, default: []].append(index)
+        }
+
+        var newByKind: [String: [Int]] = [:]
+        for (index, block) in newBlocks.enumerated()
+        where matches[index] == nil {
+            newByKind[block.content.kind, default: []].append(index)
+        }
+
+        // Top-level Markdown blocks are source ordered and do not nest. A
+        // range sweep therefore considers each unmatched block at most once.
+        for (kind, newIndices) in newByKind {
+            guard let previousIndices = previousByKind[kind] else {
+                continue
+            }
+            let sortedNew = newIndices.sorted {
+                newBlocks[$0].sourceRange.startLine
+                    < newBlocks[$1].sourceRange.startLine
+            }
+            let sortedPrevious = previousIndices.sorted {
+                previousBlocks[$0].sourceRange.startLine
+                    < previousBlocks[$1].sourceRange.startLine
+            }
+            var newCursor = 0
+            var previousCursor = 0
+
+            while newCursor < sortedNew.count,
+                  previousCursor < sortedPrevious.count {
+                let newIndex = sortedNew[newCursor]
+                let previousIndex = sortedPrevious[previousCursor]
+                let newRange = newBlocks[newIndex].sourceRange
+                let previousRange = previousBlocks[previousIndex].sourceRange
+
+                if newRange.overlaps(previousRange) {
+                    matches[newIndex] = previousBlocks[previousIndex].id
+                    newCursor += 1
+                    previousCursor += 1
+                } else if previousRange.endLine < newRange.startLine {
+                    previousCursor += 1
+                } else {
+                    newCursor += 1
+                }
+            }
+        }
+
+        return newBlocks.enumerated().map { index, block in
+            guard let matchedID = matches[index] else {
+                return block
+            }
+            return block.replacingID(matchedID)
+        }
     }
 }

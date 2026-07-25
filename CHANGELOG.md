@@ -19,12 +19,14 @@ The project follows [Semantic Versioning](https://semver.org/).
   tools fall back to fenced source and CLI failures show a diagnostic card
 - SVG display now uses the macOS native SVG image representation, and D2 emits
   only the theme for the effective appearance
-- The Markdown formatter now executes bundled Prettier through JavaScriptCore
+- The Markdown formatter now uses `swift-markdown`; fenced code is preserved
+  except for D2 blocks formatted by the local D2 CLI
 
 ### Removed
 
-- WKWebView, the bundled Mermaid browser runtime, the bundled D2 helper,
-  SVGView, App Sandbox, and the obsolete WebKit network entitlement
+- WKWebView, JavaScriptCore, bundled Prettier, the bundled Mermaid browser
+  runtime, the bundled D2 helper, SVGView, App Sandbox, and the obsolete WebKit
+  network entitlement
 
 ## [0.22.0] - 2026-07-24
 

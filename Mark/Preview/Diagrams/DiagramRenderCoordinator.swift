@@ -40,7 +40,9 @@ actor DiagramRenderCoordinator {
     private let mermaidRenderService: MermaidRenderService
     private var cache: [String: SVGDocument] = [:]
     private var cacheOrder: [String] = []
+    private var cacheCost = 0
     private let maximumEntries = 128
+    private let maximumMemoryCacheBytes = 64 * 1_024 * 1_024
     private let maximumSVGBytes = 8 * 1_024 * 1_024
     private let maximumDiskCacheBytes = 256 * 1_024 * 1_024
     private let diskCacheTrimTargetBytes = 224 * 1_024 * 1_024
@@ -53,6 +55,19 @@ actor DiagramRenderCoordinator {
         self.toolRegistry = toolRegistry
         self.d2RenderService = d2RenderService
         self.mermaidRenderService = mermaidRenderService
+    }
+
+    func cacheStatistics() -> PreviewCacheStatistics {
+        PreviewCacheStatistics(
+            entryCount: cache.count,
+            estimatedBytes: cacheCost
+        )
+    }
+
+    func purgeCaches() {
+        cache.removeAll(keepingCapacity: false)
+        cacheOrder.removeAll(keepingCapacity: false)
+        cacheCost = 0
     }
 
     func render(_ request: DiagramRenderRequest) async throws -> DiagramRenderResult {
@@ -113,11 +128,19 @@ actor DiagramRenderCoordinator {
     }
 
     private func storeInMemory(_ document: SVGDocument, forKey key: String) {
+        if let previous = cache[key] {
+            cacheCost -= previous.sanitizedXML.utf8.count
+        }
         cache[key] = document
+        cacheCost += document.sanitizedXML.utf8.count
         cacheOrder.removeAll(where: { $0 == key })
         cacheOrder.append(key)
-        while cacheOrder.count > maximumEntries {
-            cache.removeValue(forKey: cacheOrder.removeFirst())
+        while cacheOrder.count > maximumEntries
+            || cacheCost > maximumMemoryCacheBytes {
+            let removedKey = cacheOrder.removeFirst()
+            if let removed = cache.removeValue(forKey: removedKey) {
+                cacheCost -= removed.sanitizedXML.utf8.count
+            }
         }
     }
 

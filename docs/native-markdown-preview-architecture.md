@@ -23,8 +23,10 @@ flowchart LR
     Model --> PDF[Native AppKit print pipeline]
 ```
 
-No application code uses WebKit. The bundled Markdown formatter runs the local
-Prettier JavaScript assets in JavaScriptCore.
+No application code uses WebKit or JavaScriptCore. **Format Document** parses
+and prints Markdown with `swift-markdown`'s native `MarkupFormatter`; fenced
+code remains unchanged except for D2 blocks formatted through the local `d2`
+CLI.
 
 ## Local diagram tools
 
@@ -39,7 +41,12 @@ DiagramDown does not bundle Mermaid or D2. `DiagramToolRegistry` discovers
 Candidates are validated with `mmdc --version` or `d2 version`. The resolved
 absolute path and reported version are part of the render cache key. Settings
 can refresh detection, select a custom executable, restore automatic detection,
-and copy Homebrew installation commands.
+and copy the supported installation commands:
+
+```sh
+npm install -g @mermaid-js/mermaid-cli
+brew install d2
+```
 
 Commands are launched directly with an absolute executable and argument array;
 document content is never interpolated into a shell command. Each render uses a
@@ -67,7 +74,9 @@ Parsing, Tree-sitter highlighting, CLI execution, and SVG sanitation run behind
 actors. SwiftUI only applies a result whose block ID and document revision match
 the active request.
 
-Sanitized SVGs use bounded memory and disk caches. `SVGSanitizer` rejects DTDs,
+Sanitized SVGs use bounded memory and disk caches. Tree-sitter attributed text
+and SVG memory caches expose statistics for tests and are purged on macOS
+memory-pressure warnings. `SVGSanitizer` rejects DTDs,
 entities, malformed XML, invalid dimensions, excessive size/depth/elements,
 scripts, foreign objects, event attributes, JavaScript URLs, and external image
 references. The same sanitized document is displayed with macOS
@@ -78,8 +87,8 @@ references. The same sanitized document is displayed with macOS
 The application is distributed directly, with Hardened Runtime and optional
 Developer ID signing/notarization. App Sandbox is intentionally disabled so the
 application can execute user-installed Node/Puppeteer and D2 toolchains. Release
-validation rejects WebKit linkage, bundled Mermaid/D2 runtimes, SVGView, and
-obsolete sandbox/network entitlements.
+validation rejects WebKit or JavaScriptCore linkage, bundled Mermaid/D2
+runtimes, Prettier assets, SVGView, and obsolete sandbox/network entitlements.
 
 Pinned application dependencies are `swift-markdown`, `swift-tree-sitter`, and
 the Tree-sitter grammar packages. Mermaid and D2 versions are controlled by the

@@ -17,6 +17,7 @@ struct DiagramDownApp: App {
             WorkspaceSceneView()
                 .preferredColorScheme(preferredColorScheme)
                 .task {
+                    PreviewCacheMemoryPressureMonitor.shared.start()
                     _ = await DiagramToolRegistry.shared.refreshAll()
                 }
         }
