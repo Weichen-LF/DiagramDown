@@ -14,7 +14,9 @@ Use this checklist for every public community release. The current channel is Ap
 
 - [ ] Run `./Scripts/test.sh`.
 - [ ] Run `./Scripts/package-release.sh --allow-dirty --expected-version <version>` to validate the candidate before commit.
-- [ ] Confirm `validate-release.sh` reports the expected version, build, arm64 architecture, signatures, entitlements, Hardened Runtime, and licenses.
+- [ ] Confirm `validate-release.sh` reports the expected version, build, arm64 architecture, signature, Hardened Runtime, absence of WebKit/bundled diagram tools, and licenses.
+- [ ] Confirm Mermaid and D2 fences fall back to code blocks when both CLIs are absent.
+- [ ] Confirm current Homebrew `mermaid-cli` and `d2` versions render the example document.
 - [ ] Inspect the final diff and make sure no build products, credentials, local paths, or test documents were added.
 
 GUI automation and Computer Use are not part of this release gate. The combined `docs/examples/all-features.md` document remains available for optional human checks.

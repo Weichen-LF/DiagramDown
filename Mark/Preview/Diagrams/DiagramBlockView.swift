@@ -9,19 +9,14 @@ import UniformTypeIdentifiers
 
 private enum DiagramBlockState {
     case idle
-    case rendering(previous: SVGDocument?)
+    case rendering
     case rendered(SVGDocument)
-    case failed(message: String, previous: SVGDocument?)
+    case unavailable
+    case failed(message: String)
 
     var document: SVGDocument? {
-        switch self {
-        case .rendering(let previous), .failed(_, let previous):
-            previous
-        case .rendered(let document):
-            document
-        case .idle:
-            nil
-        }
+        guard case .rendered(let document) = self else { return nil }
+        return document
     }
 }
 
@@ -39,6 +34,7 @@ struct DiagramBlockView: View {
 
     @State private var state = DiagramBlockState.idle
     @State private var showsViewer = false
+    @AppStorage(DiagramToolRegistry.revisionPreferenceKey) private var toolRevision = 0
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -99,46 +95,39 @@ struct DiagramBlockView: View {
                 .controlSize(.small)
                 .frame(minHeight: 100 * metrics.zoom)
 
-        case .rendering(let previous):
-            if let previous {
-                NativeSVGView(document: previous)
-                    .frame(maxHeight: metrics.diagramMaximumHeight)
-                    .overlay {
-                        ProgressView()
-                            .padding(8)
-                            .background(.regularMaterial, in: Capsule())
-                    }
-            } else {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(minHeight: 100 * metrics.zoom)
-            }
+        case .rendering:
+            ProgressView()
+                .controlSize(.small)
+                .frame(minHeight: 100 * metrics.zoom)
 
         case .rendered(let document):
-            NativeSVGView(document: document)
+            NativeSVGView(
+                document: document,
+                background: theme.background
+            )
                 .frame(maxHeight: metrics.diagramMaximumHeight)
 
-        case .failed(let message, let previous):
+        case .unavailable:
             VStack(alignment: .leading, spacing: 8) {
-                if let previous {
-                    NativeSVGView(document: previous)
-                        .frame(maxHeight: metrics.diagramMaximumHeight)
+                CodeBlockView(
+                    source: source,
+                    language: nil,
+                    rawLanguage: kind.rawValue,
+                    theme: theme,
+                    metrics: metrics
+                )
+                SettingsLink {
+                    Label("Configure Diagram Tools", systemImage: "wrench.and.screwdriver")
                 }
+                .controlSize(.small)
+            }
+
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 8) {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.system(size: metrics.bodyFontSize))
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
-                DisclosureGroup("Diagram source") {
-                    Text(source)
-                        .font(
-                            .system(
-                                size: metrics.codeFontSize,
-                                design: .monospaced
-                            )
-                        )
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
             }
             .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
         }
@@ -150,13 +139,13 @@ struct DiagramBlockView: View {
             MarkdownParserService.digest(source),
             theme.id,
             configuration.d2.cacheDescriptor,
+            String(toolRevision),
         ].joined(separator: ":")
     }
 
     @MainActor
     private func render() async {
-        let previous = state.document
-        state = .rendering(previous: previous)
+        state = .rendering
         let dark = theme.id.hasSuffix("-dark")
         let request = DiagramRenderRequest(
             blockID: blockID,
@@ -181,11 +170,10 @@ struct DiagramBlockView: View {
             state = .rendered(result.document)
         } catch is CancellationError {
             return
+        } catch is DiagramToolResolutionError {
+            state = .unavailable
         } catch {
-            state = .failed(
-                message: error.localizedDescription,
-                previous: previous
-            )
+            state = .failed(message: error.localizedDescription)
         }
     }
 
@@ -257,7 +245,10 @@ private struct DiagramViewerView: View {
             Divider()
 
             ScrollView([.horizontal, .vertical]) {
-                NativeSVGView(document: document)
+                NativeSVGView(
+                    document: document,
+                    background: theme.background
+                )
                     .frame(
                         width: max(document.intrinsicSize.width * zoom, 100),
                         height: max(document.intrinsicSize.height * zoom, 100)

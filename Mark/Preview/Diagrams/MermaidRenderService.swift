@@ -4,236 +4,161 @@
 //
 
 import Foundation
-import WebKit
 
 nonisolated enum MermaidRenderError: LocalizedError, Sendable {
-    case runtimeMissing
-    case runtimeUnavailable
     case inputTooLarge
-    case invalidResponse
+    case timedOut
+    case cancelled
+    case processLaunchFailed(String)
+    case processFailed(exitCode: Int32, message: String)
+    case outputMissing
     case outputTooLarge
-    case renderFailed(String)
+    case invalidSVG
 
     var errorDescription: String? {
         switch self {
-        case .runtimeMissing:
-            "The bundled Mermaid renderer is missing."
-        case .runtimeUnavailable:
-            "The Mermaid renderer could not be initialized."
         case .inputTooLarge:
             "The Mermaid source exceeds the 256 KB preview limit."
-        case .invalidResponse:
-            "Mermaid returned an invalid render result."
+        case .timedOut:
+            "Mermaid rendering exceeded the 15 second time limit."
+        case .cancelled:
+            "Mermaid rendering was cancelled."
+        case .processLaunchFailed(let message):
+            "Mermaid CLI could not be started: \(message)"
+        case .processFailed(let exitCode, let message):
+            message.isEmpty
+                ? "Mermaid rendering failed with exit code \(exitCode)."
+                : message
+        case .outputMissing:
+            "Mermaid CLI finished without producing an SVG."
         case .outputTooLarge:
-            "The generated Mermaid SVG exceeds the 8 MB limit."
-        case .renderFailed(let message):
-            message.isEmpty ? "Mermaid could not render this diagram." : message
+            "The generated Mermaid SVG exceeds the 8 MB preview limit."
+        case .invalidSVG:
+            "Mermaid CLI produced an invalid SVG document."
         }
     }
 }
 
 actor MermaidRenderService {
     static let shared = MermaidRenderService()
-    nonisolated static let rendererVersion = "bundled-runtime-v1"
+    nonisolated static let rendererVersion = "local-mmdc-v1"
 
-    private var requestCounter: UInt64 = 0
-    private let maximumInputBytes = 256 * 1_024
-    private let maximumOutputBytes = 8 * 1_024 * 1_024
+    private static let maximumInputBytes = 256 * 1_024
+    private static let maximumOutputBytes = 8 * 1_024 * 1_024
+    private let runner: ExternalProcessRunner
+
+    init(runner: ExternalProcessRunner = .shared) {
+        self.runner = runner
+    }
 
     func render(
         source: String,
         theme: MermaidPreviewTheme,
-        appearance: String
+        appearance _: String,
+        tool: InstalledDiagramTool? = nil
     ) async throws -> String {
         try Task.checkCancellation()
-        guard source.utf8.count <= maximumInputBytes else {
+        guard source.utf8.count <= Self.maximumInputBytes else {
             throw MermaidRenderError.inputTooLarge
         }
-        requestCounter &+= 1
-        let requestID = "m-\(requestCounter)"
 
+        let installedTool: InstalledDiagramTool
+        if let tool {
+            installedTool = tool
+        } else {
+            installedTool = try await DiagramToolRegistry.shared.installedTool(for: .mermaid)
+        }
+
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inputURL = directory.appendingPathComponent("input.mmd")
+        let outputURL = directory.appendingPathComponent("output.svg")
+        try source.write(to: inputURL, atomically: true, encoding: .utf8)
+
+        let result: ExternalProcessResult
         do {
-            let result = try await MermaidWebViewHost.shared.render(
-                source: source,
-                requestID: requestID,
-                theme: theme.rawValue,
-                appearance: appearance
+            result = try await runner.run(
+                executableURL: installedTool.executableURL,
+                arguments: [
+                    "-i", inputURL.path,
+                    "-o", outputURL.path,
+                    "-t", theme.rawValue,
+                    "-b", "transparent",
+                ],
+                currentDirectoryURL: directory,
+                environment: ExternalProcessRunner.defaultEnvironment(
+                    temporaryDirectory: directory
+                ),
+                timeout: .seconds(15)
             )
-            try Task.checkCancellation()
-            guard result.utf8.count <= maximumOutputBytes else {
-                throw MermaidRenderError.outputTooLarge
-            }
-            return result
-        } catch let error as MermaidRenderError {
-            throw error
+        } catch ExternalProcessRunnerError.timedOut {
+            throw MermaidRenderError.timedOut
+        } catch ExternalProcessRunnerError.cancelled {
+            throw MermaidRenderError.cancelled
         } catch {
-            let message = (error as NSError).localizedDescription
-            throw MermaidRenderError.renderFailed(
-                String(message.prefix(1_024))
+            throw MermaidRenderError.processLaunchFailed(
+                cleanedDiagnostic(error.localizedDescription, temporaryDirectory: directory)
             )
         }
-    }
-}
 
-@MainActor
-final class MermaidWebViewHost: NSObject {
-    static let shared = MermaidWebViewHost()
+        guard result.exitCode == 0 else {
+            let diagnostic = result.standardError.isEmpty
+                ? result.standardOutput
+                : result.standardError
+            throw MermaidRenderError.processFailed(
+                exitCode: result.exitCode,
+                message: cleanedDiagnostic(diagnostic, temporaryDirectory: directory)
+            )
+        }
 
-    private let webView: WKWebView
-    private var runtimeReady = false
-    private var runtimeLoading = false
-    private var readinessContinuations: [CheckedContinuation<Void, Error>] = []
-
-    override init() {
-        let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
-        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
-        webView = WKWebView(frame: .zero, configuration: configuration)
-        super.init()
-        webView.navigationDelegate = self
+        return try loadSVG(at: outputURL)
     }
 
-    func render(
-        source: String,
-        requestID: String,
-        theme: String,
-        appearance: String
-    ) async throws -> String {
-        try await loadRuntime()
-        let response = try await webView.callAsyncJavaScript(
-            """
-            return await window.mermaidRuntime.render(
-                source,
-                requestID,
-                theme,
-                appearance
-            );
-            """,
-            arguments: [
-                "source": source,
-                "requestID": requestID,
-                "theme": theme,
-                "appearance": appearance,
-            ],
-            in: nil,
-            contentWorld: .page
+    private func makeTemporaryDirectory() throws -> URL {
+        let baseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                Bundle.main.bundleIdentifier ?? "me.walt.diagramdown",
+                isDirectory: true
+            )
+            .appendingPathComponent("mermaid", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: baseURL,
+            withIntermediateDirectories: true
         )
-        guard let payload = response as? [String: Any],
-              payload["requestID"] as? String == requestID,
-              let svg = payload["svg"] as? String,
-              svg.range(of: "<svg", options: .caseInsensitive) != nil else {
-            throw MermaidRenderError.invalidResponse
+        let directory = baseURL.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: false
+        )
+        return directory
+    }
+
+    private func loadSVG(at outputURL: URL) throws -> String {
+        guard FileManager.default.fileExists(atPath: outputURL.path) else {
+            throw MermaidRenderError.outputMissing
+        }
+        let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
+        let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
+        guard size <= Self.maximumOutputBytes else {
+            throw MermaidRenderError.outputTooLarge
+        }
+        let svg = try String(contentsOf: outputURL, encoding: .utf8)
+        guard svg.range(of: "<svg", options: .caseInsensitive) != nil,
+              svg.range(of: "</svg>", options: .caseInsensitive) != nil else {
+            throw MermaidRenderError.invalidSVG
         }
         return svg
     }
 
-    private func loadRuntime() async throws {
-        if runtimeReady {
-            return
-        }
-
-        try await withCheckedThrowingContinuation { continuation in
-            readinessContinuations.append(continuation)
-            guard !runtimeLoading else {
-                return
-            }
-            guard let url = Self.runtimeURL else {
-                finishLoading(with: .failure(MermaidRenderError.runtimeMissing))
-                return
-            }
-
-            runtimeLoading = true
-            webView.loadFileURL(
-                url,
-                allowingReadAccessTo: url.deletingLastPathComponent()
+    private func cleanedDiagnostic(
+        _ diagnostic: String,
+        temporaryDirectory: URL
+    ) -> String {
+        DiagramToolRegistry.cleanedDiagnostic(
+            diagnostic.replacingOccurrences(
+                of: temporaryDirectory.path,
+                with: "<temporary-directory>"
             )
-        }
-    }
-
-    private func validateRuntime() {
-        Task {
-            do {
-                let result = try await webView.callAsyncJavaScript(
-                    "return typeof window.mermaidRuntime?.render === 'function';",
-                    arguments: [:],
-                    in: nil,
-                    contentWorld: .page
-                )
-                guard result as? Bool == true else {
-                    throw MermaidRenderError.runtimeUnavailable
-                }
-                finishLoading(with: .success(()))
-            } catch {
-                finishLoading(with: .failure(error))
-            }
-        }
-    }
-
-    private func finishLoading(with result: Result<Void, Error>) {
-        runtimeLoading = false
-        runtimeReady = (try? result.get()) != nil
-        let continuations = readinessContinuations
-        readinessContinuations.removeAll()
-        for continuation in continuations {
-            continuation.resume(with: result)
-        }
-    }
-
-    private static var runtimeURL: URL? {
-        let bundle = Bundle.main
-        return bundle.url(
-            forResource: "renderer",
-            withExtension: "html",
-            subdirectory: "MermaidRenderer"
-        ) ?? bundle.url(
-            forResource: "renderer",
-            withExtension: "html",
-            subdirectory: "Resources/MermaidRenderer"
-        ) ?? bundle.url(
-            forResource: "renderer",
-            withExtension: "html"
         )
-    }
-}
-
-extension MermaidWebViewHost: WKNavigationDelegate {
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
-        validateRuntime()
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        didFail navigation: WKNavigation?,
-        withError error: Error
-    ) {
-        finishLoading(with: .failure(error))
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation?,
-        withError error: Error
-    ) {
-        finishLoading(with: .failure(error))
-    }
-
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        runtimeReady = false
-        if runtimeLoading {
-            finishLoading(with: .failure(MermaidRenderError.runtimeUnavailable))
-        }
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.cancel)
-            return
-        }
-        decisionHandler(url.isFileURL || url.absoluteString == "about:blank" ? .allow : .cancel)
     }
 }

@@ -6,6 +6,10 @@
 > Workspace tab, active-file, tree, layout, scroll, and unsaved-text recovery are also
 > implemented. External-change handling, file operations, Quick Open, and search
 > remain follow-up work.
+>
+> Sandbox-specific bookmark and entitlement discussion is historical. The current
+> direct-distribution build intentionally disables App Sandbox so it can execute
+> user-installed Mermaid and D2 command-line tools.
 
 ## 1. Goal
 

@@ -107,7 +107,7 @@ actor WorkspaceRecoveryStore {
         )
         try encoder.encode(snapshot).write(
             to: snapshotURL(for: snapshot.workspaceID),
-            options: [.atomic, .completeFileProtectionUnlessOpen]
+            options: .atomic
         )
     }
 

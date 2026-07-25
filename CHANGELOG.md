@@ -6,6 +6,26 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Local Mermaid CLI and D2 discovery, version checks, custom executable paths,
+  installation guidance, and diagram-tool status in Settings
+- Safe bounded CLI execution with cancellation, timeout, process-group cleanup,
+  SVG sanitation, and cache invalidation when a tool path or version changes
+
+### Changed
+
+- Mermaid and D2 previews now use user-installed `mmdc` and `d2`; unavailable
+  tools fall back to fenced source and CLI failures show a diagnostic card
+- SVG display now uses the macOS native SVG image representation, and D2 emits
+  only the theme for the effective appearance
+- The Markdown formatter now executes bundled Prettier through JavaScriptCore
+
+### Removed
+
+- WKWebView, the bundled Mermaid browser runtime, the bundled D2 helper,
+  SVGView, App Sandbox, and the obsolete WebKit network entitlement
+
 ## [0.22.0] - 2026-07-24
 
 ### Added

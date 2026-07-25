@@ -161,7 +161,8 @@ struct DiagnosticsSnapshot: Equatable, Sendable {
     let operatingSystem: String
     let architecture: String
     let locale: String
-    let d2HelperAvailable: Bool
+    let mermaidCLIAvailable: Bool
+    let d2CLIAvailable: Bool
     let preferences: DiagnosticsPreferences
     let cache: D2CacheStatistics
 }
@@ -178,11 +179,6 @@ enum DiagnosticsReport {
             bundle: bundle,
             fileManager: fileManager
         )
-        let helperURL = bundle.url(forAuxiliaryExecutable: "d2")
-            ?? bundle.bundleURL
-                .appendingPathComponent("Contents", isDirectory: true)
-                .appendingPathComponent("Helpers", isDirectory: true)
-                .appendingPathComponent("d2", isDirectory: false)
         let snapshot = DiagnosticsSnapshot(
             generatedAt: generatedAt,
             appVersion: bundle.object(
@@ -194,7 +190,16 @@ enum DiagnosticsReport {
             operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
             architecture: architecture,
             locale: Locale.current.identifier,
-            d2HelperAvailable: fileManager.isExecutableFile(atPath: helperURL.path),
+            mermaidCLIAvailable: toolAvailable(
+                .mermaid,
+                defaults: defaults,
+                fileManager: fileManager
+            ),
+            d2CLIAvailable: toolAvailable(
+                .d2,
+                defaults: defaults,
+                fileManager: fileManager
+            ),
             preferences: DiagnosticsPreferences.current(from: defaults),
             cache: D2CacheStatistics.collect(at: cacheURL, fileManager: fileManager)
         )
@@ -220,9 +225,11 @@ enum DiagnosticsReport {
         Mermaid dark theme: \(snapshot.preferences.mermaidDarkTheme)
         Preview zoom: \(snapshot.preferences.previewZoom)%
 
-        D2
-        Renderer version: \(D2RenderService.rendererVersion)
-        Helper available: \(yesNo(snapshot.d2HelperAvailable))
+        Diagram Tools
+        Mermaid CLI available: \(yesNo(snapshot.mermaidCLIAvailable))
+        D2 CLI available: \(yesNo(snapshot.d2CLIAvailable))
+
+        D2 Preview
         Layout: \(snapshot.preferences.d2Layout)
         Light theme ID: \(snapshot.preferences.d2LightThemeID)
         Dark theme ID: \(snapshot.preferences.d2DarkThemeID)
@@ -256,6 +263,24 @@ enum DiagnosticsReport {
         #else
         "unknown"
         #endif
+    }
+
+    private static func toolAvailable(
+        _ kind: DiagramToolKind,
+        defaults: UserDefaults,
+        fileManager: FileManager
+    ) -> Bool {
+        if let customPath = defaults.string(forKey: kind.customPathPreferenceKey),
+           !customPath.isEmpty {
+            return fileManager.isExecutableFile(atPath: customPath)
+        }
+        return DiagramToolRegistry.defaultSearchDirectories(
+            environment: ProcessInfo.processInfo.environment
+        ).contains { directory in
+            fileManager.isExecutableFile(
+                atPath: directory.appendingPathComponent(kind.executableName).path
+            )
+        }
     }
 
     private static func yesNo(_ value: Bool) -> String {

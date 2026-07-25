@@ -519,7 +519,8 @@ final class DiagnosticsReportTests: XCTestCase {
             operatingSystem: "macOS test",
             architecture: "arm64",
             locale: "en_US",
-            d2HelperAvailable: true,
+            mermaidCLIAvailable: true,
+            d2CLIAvailable: true,
             preferences: DiagnosticsPreferences(
                 appearance: "dark",
                 markdownTheme: "github",
@@ -715,6 +716,136 @@ final class D2FormattingTests: XCTestCase {
         let markdown = "```json\n{\"ok\":true}\n```"
         let result = try await service.formatFencedBlocks(in: markdown)
         XCTAssertEqual(result, markdown)
+    }
+
+    func testMissingD2FormatterLeavesD2FencesUnchanged() async throws {
+        let service = D2RenderService(executableURL: URL(fileURLWithPath: "/missing"))
+        let markdown = "```d2\na    ->    b\n```"
+        let result = try await service.formatFencedBlocks(in: markdown)
+        XCTAssertEqual(result, markdown)
+    }
+}
+
+@MainActor
+final class MarkdownFormattingServiceTests: XCTestCase {
+    func testBundledFormatterRunsWithoutWebKit() async throws {
+        let formatted = try await MarkdownFormattingService.shared.format(
+            "#  Heading\n\n```json\n{\"ok\":true}\n```\n"
+        )
+        XCTAssertTrue(formatted.contains("# Heading"))
+        XCTAssertTrue(formatted.contains(#"{ "ok": true }"#))
+    }
+}
+
+final class DiagramToolRegistryTests: XCTestCase {
+    func testAutomaticSearchIgnoresRelativePATHEntries() {
+        let directories = DiagramToolRegistry.defaultSearchDirectories(
+            environment: ["PATH": "relative/bin:/absolute/bin"]
+        )
+        XCTAssertFalse(directories.map(\.path).contains { $0.hasSuffix("/relative/bin") })
+        XCTAssertTrue(directories.map(\.path).contains("/absolute/bin"))
+    }
+
+    func testDiscoversHomebrewStyleExecutableAndReadsVersion() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let executable = directory.appendingPathComponent("mmdc")
+        try "#!/bin/sh\nprintf '11.16.0\\n'\n".write(
+            to: executable,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executable.path
+        )
+
+        let registry = DiagramToolRegistry(automaticDirectories: [directory])
+        let status = await registry.status(for: .mermaid)
+        guard case .installed(let tool) = status else {
+            return XCTFail("Expected the fake Mermaid CLI to be discovered.")
+        }
+        XCTAssertEqual(tool.version, "11.16.0")
+        XCTAssertEqual(tool.executableURL, executable.resolvingSymlinksInPath())
+    }
+
+    func testMissingToolReturnsResolutionError() async {
+        let registry = DiagramToolRegistry(automaticDirectories: [])
+        do {
+            _ = try await registry.installedTool(for: .d2)
+            XCTFail("Expected a missing-tool error.")
+        } catch is DiagramToolResolutionError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+}
+
+final class LocalDiagramCLIRenderTests: XCTestCase {
+    func testD2UsesOnlyTheThemeForTheEffectiveAppearance() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let captureURL = directory.appendingPathComponent("arguments.txt")
+        let executable = directory.appendingPathComponent("d2")
+        let script = """
+        #!/bin/sh
+        printf '%s\\n' "$@" > "\(captureURL.path)"
+        for argument in "$@"; do output="$argument"; done
+        printf '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"></svg>' > "$output"
+        """
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executable.path
+        )
+
+        let service = D2RenderService(executableURL: executable)
+        _ = try await service.render(
+            source: "a -> b",
+            configuration: .preview,
+            appearance: "dark"
+        )
+
+        let arguments = try String(contentsOf: captureURL, encoding: .utf8)
+        XCTAssertTrue(arguments.contains("--theme\n200\n"))
+        XCTAssertFalse(arguments.contains("--dark-theme"))
+    }
+
+    func testExternalRunnerTimesOut() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("slow")
+        try "#!/bin/sh\nsleep 5\n".write(
+            to: executable,
+            atomically: true,
+            encoding: .utf8
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executable.path
+        )
+
+        do {
+            _ = try await ExternalProcessRunner().run(
+                executableURL: executable,
+                arguments: [],
+                timeout: .milliseconds(50)
+            )
+            XCTFail("Expected the command to time out.")
+        } catch ExternalProcessRunnerError.timedOut {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 }
 

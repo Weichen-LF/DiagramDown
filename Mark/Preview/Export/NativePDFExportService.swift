@@ -11,6 +11,8 @@ struct PreviewExportSnapshot {
     let document: PreviewDocument
     let resolvedCodeBlocks: [PreviewBlockID: AttributedString]
     let resolvedDiagrams: [PreviewBlockID: SVGDocument]
+    let diagramCodeFallbacks: [PreviewBlockID: AttributedString]
+    let diagramErrors: [PreviewBlockID: String]
     let resolvedImages: [PreviewBlockID: NSImage]
     let theme: PreviewTheme
     let metrics: PreviewMetrics
@@ -74,6 +76,8 @@ enum NativePDFExportService {
     ) async throws -> PreviewExportSnapshot {
         var codeBlocks: [PreviewBlockID: AttributedString] = [:]
         var diagrams: [PreviewBlockID: SVGDocument] = [:]
+        var diagramCodeFallbacks: [PreviewBlockID: AttributedString] = [:]
+        var diagramErrors: [PreviewBlockID: String] = [:]
         var images: [PreviewBlockID: NSImage] = [:]
         let dark = theme.id.hasSuffix("-dark")
 
@@ -91,22 +95,33 @@ enum NativePDFExportService {
                 case .mermaid: .mermaid
                 default: .d2
                 }
-                let result = try await DiagramRenderCoordinator.shared.render(
-                    DiagramRenderRequest(
-                        blockID: block.id,
-                        revision: document.revision,
-                        kind: kind,
-                        source: source,
-                        configuration: DiagramConfiguration(
-                            mermaidTheme: dark
-                                ? configuration.mermaidDarkTheme
-                                : configuration.mermaidLightTheme,
-                            appearance: dark ? "dark" : "light",
-                            d2: configuration.d2
+                do {
+                    let result = try await DiagramRenderCoordinator.shared.render(
+                        DiagramRenderRequest(
+                            blockID: block.id,
+                            revision: document.revision,
+                            kind: kind,
+                            source: source,
+                            configuration: DiagramConfiguration(
+                                mermaidTheme: dark
+                                    ? configuration.mermaidDarkTheme
+                                    : configuration.mermaidLightTheme,
+                                appearance: dark ? "dark" : "light",
+                                d2: configuration.d2
+                            )
                         )
                     )
-                )
-                diagrams[block.id] = result.document
+                    diagrams[block.id] = result.document
+                } catch is DiagramToolResolutionError {
+                    diagramCodeFallbacks[block.id] =
+                        await TreeSitterCodeHighlighter.shared.highlight(
+                            source: source,
+                            language: nil,
+                            theme: theme.codeTheme
+                        )
+                } catch {
+                    diagramErrors[block.id] = error.localizedDescription
+                }
             case .image(let image):
                 let data = try? await Task.detached {
                     try PreviewImageResolver.data(
@@ -127,6 +142,8 @@ enum NativePDFExportService {
             document: document,
             resolvedCodeBlocks: codeBlocks,
             resolvedDiagrams: diagrams,
+            diagramCodeFallbacks: diagramCodeFallbacks,
+            diagramErrors: diagramErrors,
             resolvedImages: images,
             theme: theme,
             metrics: PreviewMetrics(zoom: 1)
@@ -277,8 +294,26 @@ private struct PrintablePreviewBlockView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         case .mermaid, .d2:
             if let diagram = snapshot.resolvedDiagrams[block.id] {
-                NativeSVGView(document: diagram)
+                NativeSVGView(
+                    document: diagram,
+                    background: theme.background
+                )
                     .frame(maxWidth: .infinity, maxHeight: 620)
+            } else if let source = snapshot.diagramCodeFallbacks[block.id] {
+                Text(source)
+                    .font(.system(size: metrics.codeFontSize, design: .monospaced))
+                    .padding(metrics.codeInset)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(theme.codeTheme.background))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else if let message = snapshot.diagramErrors[block.id] {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: metrics.bodyFontSize))
+                    .foregroundStyle(.red)
+                    .padding(metrics.codeInset)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(theme.subtleBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
         case .thematicBreak:
             Divider().overlay(theme.border)

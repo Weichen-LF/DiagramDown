@@ -3,8 +3,8 @@
 //  DiagramDown
 //
 
-import AppKit
-import WebKit
+import Foundation
+import JavaScriptCore
 
 enum MarkdownFormattingError: LocalizedError {
     case runtimeMissing
@@ -30,108 +30,121 @@ enum MarkdownFormattingError: LocalizedError {
 }
 
 @MainActor
-final class MarkdownFormattingService: NSObject, WKNavigationDelegate {
+final class MarkdownFormattingService {
     static let shared = MarkdownFormattingService()
 
     private let maximumInputBytes = 4 * 1_024 * 1_024
-    private let webView: WKWebView
-    private var runtimeReady = false
+    private let context: JSContext?
     private var runtimeError: Error?
-    private var readinessWaiters: [CheckedContinuation<Void, Error>] = []
 
-    override private init() {
-        let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .nonPersistent()
-        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        webView = WKWebView(frame: .zero, configuration: configuration)
-        super.init()
-        webView.navigationDelegate = self
-
-        guard let runtimeURL = Self.runtimeURL else {
-            runtimeError = MarkdownFormattingError.runtimeMissing
+    private init() {
+        guard let context = JSContext() else {
+            self.context = nil
+            runtimeError = MarkdownFormattingError.runtimeFailed
             return
         }
-        webView.loadFileURL(
-            runtimeURL,
-            allowingReadAccessTo: runtimeURL.deletingLastPathComponent()
-        )
+        self.context = context
+
+        context.exceptionHandler = { [weak self] _, exception in
+            guard let exception else { return }
+            self?.runtimeError = NSError(
+                domain: "DiagramDown.MarkdownFormatter",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: exception.toString() ?? "JavaScript error"]
+            )
+        }
+
+        do {
+            // The formatter runtime is distributed as a browser-oriented bundle.
+            // JavaScriptCore exposes globalThis but does not create browser aliases.
+            context.evaluateScript("var window = globalThis; var self = globalThis;")
+            if let runtimeError {
+                throw runtimeError
+            }
+
+            for name in Self.runtimeScriptNames {
+                guard let url = Self.runtimeURL(for: name) else {
+                    throw MarkdownFormattingError.runtimeMissing
+                }
+                let script = try String(contentsOf: url, encoding: .utf8)
+                context.evaluateScript(script, withSourceURL: url)
+                if let runtimeError {
+                    throw runtimeError
+                }
+            }
+            guard context
+                .objectForKeyedSubscript("formatterRuntime")?
+                .objectForKeyedSubscript("formatMarkdown")?
+                .isObject == true else {
+                throw MarkdownFormattingError.runtimeFailed
+            }
+        } catch {
+            runtimeError = error
+        }
     }
 
     func format(_ source: String) async throws -> String {
         guard source.utf8.count <= maximumInputBytes else {
             throw MarkdownFormattingError.inputTooLarge
         }
-
-        try await waitUntilReady()
-        let result = try await webView.callAsyncJavaScript(
-            "return await window.formatterRuntime.formatMarkdown(source);",
-            arguments: ["source": source],
-            in: nil,
-            contentWorld: .page
-        )
-        guard var formatted = result as? String else {
-            throw MarkdownFormattingError.invalidResult
+        guard runtimeError == nil,
+              let formatter = context?
+                .objectForKeyedSubscript("formatterRuntime")?
+                .objectForKeyedSubscript("formatMarkdown"),
+              let promise = formatter.call(withArguments: [source]) else {
+            throw runtimeError ?? MarkdownFormattingError.runtimeFailed
         }
+
+        var formatted = try await string(from: promise)
         formatted = try await D2RenderService.shared.formatFencedBlocks(in: formatted)
         return formatted
     }
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        runtimeReady = true
-        resumeWaiters(with: .success(()))
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        didFail navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        failRuntime(with: error)
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        failRuntime(with: error)
-    }
-
-    private func waitUntilReady() async throws {
-        if runtimeReady {
-            return
-        }
-        if let runtimeError {
-            throw runtimeError
-        }
+    private func string(from promise: JSValue) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            readinessWaiters.append(continuation)
+            let success: @convention(block) (JSValue) -> Void = { value in
+                guard let result = value.toString() else {
+                    continuation.resume(throwing: MarkdownFormattingError.invalidResult)
+                    return
+                }
+                continuation.resume(returning: result)
+            }
+            let failure: @convention(block) (JSValue) -> Void = { value in
+                continuation.resume(throwing: NSError(
+                    domain: "DiagramDown.MarkdownFormatter",
+                    code: 2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            value.toString() ?? "Markdown formatting failed.",
+                    ]
+                ))
+            }
+            promise.invokeMethod("then", withArguments: [success, failure])
         }
     }
 
-    private func failRuntime(with error: Error) {
-        runtimeError = error
-        resumeWaiters(with: .failure(MarkdownFormattingError.runtimeFailed))
-    }
+    private static let runtimeScriptNames = [
+        "prettier",
+        "markdown",
+        "babel",
+        "estree",
+        "typescript",
+        "html",
+        "postcss",
+        "yaml",
+        "formatter",
+    ]
 
-    private func resumeWaiters(with result: Result<Void, Error>) {
-        let waiters = readinessWaiters
-        readinessWaiters.removeAll()
-        for waiter in waiters {
-            waiter.resume(with: result)
-        }
-    }
-
-    private static var runtimeURL: URL? {
+    private static func runtimeURL(for name: String) -> URL? {
         let bundle = Bundle.main
         return bundle.url(
-            forResource: "formatter",
-            withExtension: "html",
+            forResource: name,
+            withExtension: "js",
             subdirectory: "Formatter"
         ) ?? bundle.url(
-            forResource: "formatter",
-            withExtension: "html",
+            forResource: name,
+            withExtension: "js",
             subdirectory: "Resources/Formatter"
-        ) ?? bundle.url(forResource: "formatter", withExtension: "html")
+        ) ?? bundle.url(forResource: name, withExtension: "js")
     }
 }

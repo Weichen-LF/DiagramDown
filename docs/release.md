@@ -1,6 +1,8 @@
 # DiagramDown release process
 
-DiagramDown's current public releases support Apple Silicon only. Both the application and bundled D2 0.7.1 helper are arm64, and release validation rejects mixed or unexpected architectures.
+DiagramDown's current public releases support Apple Silicon only. Mermaid and
+D2 are optional user-installed command-line tools and are not part of the
+application bundle.
 
 The default distribution is a reproducible community release that does not require an Apple Developer account. It is ad-hoc signed and is not notarized by Apple. Every download page must state this limitation prominently.
 
@@ -23,9 +25,9 @@ The script:
 
 1. runs the complete automated test suite
 2. creates an arm64 Release build with local ad-hoc signatures
-3. validates the application and D2 architectures, signatures, Hardened Runtime,
-   sandbox entitlements, native-preview runtime assets, Tree-sitter grammar
-   resources, absence of the legacy Web preview, and bundled licenses
+3. validates the application architecture, signature, Hardened Runtime,
+   native-preview runtime assets, Tree-sitter grammar resources, absence of
+   WebKit/bundled diagram runtimes, and bundled licenses
 4. creates `DiagramDown-<version>-arm64.dmg` with `DiagramDown.app` and an Applications shortcut
 5. writes a matching `.sha256` checksum
 
@@ -71,19 +73,25 @@ Follow [release-checklist.md](release-checklist.md) before pushing a tag. A tag 
 Validation covers:
 
 - bundle identifier and version metadata
-- arm64 architecture of the application and bundled D2 helper
-- strict nested-code signature validation
-- Hardened Runtime on both executables
-- application sandbox and inherited helper sandbox entitlements
+- arm64 architecture of the application
+- strict nested-code signature validation and Hardened Runtime
+- absence of App Sandbox and obsolete WebKit network entitlements
 - exact ad-hoc signature status
 - bundled project and third-party license texts
-- isolated Mermaid renderer and Tree-sitter query bundles
-- absence of markdown-it, highlight.js, and visible preview Web assets
+- bundled Prettier and Tree-sitter query resources
+- absence of WebKit linkage, Mermaid browser assets, D2 helpers, SVGView,
+  markdown-it, and highlight.js
 
 ## Optional future notarized distribution
 
-The existing `Scripts/release.sh` and `Config/ExportOptions-DeveloperID.plist` remain available for a future Developer ID, notarization, and staple workflow. This path is not required for the `0.17.x` community release and does not change the current public packaging process.
+`Scripts/release.sh` and `Config/ExportOptions-DeveloperID.plist` provide the
+Developer ID, notarization, and staple workflow for direct distribution. The
+application intentionally does not target the Mac App Store because executing
+user-installed diagram tools requires App Sandbox to remain disabled.
 
 ## Manual application checks
 
-The release pipeline intentionally performs command-line and automated validation only. It does not control the macOS interface. The combined document at `docs/examples/all-features.md` can be used for later manual checks of editing, preview rendering, layout modes, scroll synchronization, diagram zoom, and export.
+The release pipeline intentionally performs command-line and automated
+validation only. Before publishing, manually test `docs/examples/all-features.md`
+once with neither CLI installed and once with current Homebrew `mermaid-cli` and
+`d2` installations.

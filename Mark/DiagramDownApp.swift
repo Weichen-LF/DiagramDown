@@ -16,6 +16,9 @@ struct DiagramDownApp: App {
         WindowGroup {
             WorkspaceSceneView()
                 .preferredColorScheme(preferredColorScheme)
+                .task {
+                    _ = await DiagramToolRegistry.shared.refreshAll()
+                }
         }
         .commands {
             FormattingCommands()

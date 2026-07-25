@@ -35,6 +35,9 @@ nonisolated struct DiagramRenderResult: Sendable {
 actor DiagramRenderCoordinator {
     static let shared = DiagramRenderCoordinator()
 
+    private let toolRegistry: DiagramToolRegistry
+    private let d2RenderService: D2RenderService
+    private let mermaidRenderService: MermaidRenderService
     private var cache: [String: SVGDocument] = [:]
     private var cacheOrder: [String] = []
     private let maximumEntries = 128
@@ -42,9 +45,24 @@ actor DiagramRenderCoordinator {
     private let maximumDiskCacheBytes = 256 * 1_024 * 1_024
     private let diskCacheTrimTargetBytes = 224 * 1_024 * 1_024
 
+    init(
+        toolRegistry: DiagramToolRegistry = .shared,
+        d2RenderService: D2RenderService = .shared,
+        mermaidRenderService: MermaidRenderService = .shared
+    ) {
+        self.toolRegistry = toolRegistry
+        self.d2RenderService = d2RenderService
+        self.mermaidRenderService = mermaidRenderService
+    }
+
     func render(_ request: DiagramRenderRequest) async throws -> DiagramRenderResult {
         try Task.checkCancellation()
-        let key = cacheKey(for: request)
+        let toolKind: DiagramToolKind = switch request.kind {
+        case .mermaid: .mermaid
+        case .d2: .d2
+        }
+        let tool = try await toolRegistry.installedTool(for: toolKind)
+        let key = cacheKey(for: request, tool: tool)
         if let cached = cache[key] {
             return result(for: request, document: cached, cacheKey: key)
         }
@@ -57,15 +75,18 @@ actor DiagramRenderCoordinator {
         let rawSVG: String
         switch request.kind {
         case .d2:
-            rawSVG = try await D2RenderService.shared.render(
+            rawSVG = try await d2RenderService.render(
                 source: request.source,
-                configuration: request.configuration.d2
+                configuration: request.configuration.d2,
+                appearance: request.configuration.appearance,
+                tool: tool
             ).svg
         case .mermaid:
-            rawSVG = try await MermaidRenderService.shared.render(
+            rawSVG = try await mermaidRenderService.render(
                 source: request.source,
                 theme: request.configuration.mermaidTheme,
-                appearance: request.configuration.appearance
+                appearance: request.configuration.appearance,
+                tool: tool
             )
         }
         try Task.checkCancellation()
@@ -228,17 +249,23 @@ actor DiagramRenderCoordinator {
             .appendingPathComponent("preview-diagrams", isDirectory: true)
     }
 
-    private func cacheKey(for request: DiagramRenderRequest) -> String {
+    private func cacheKey(
+        for request: DiagramRenderRequest,
+        tool: InstalledDiagramTool
+    ) -> String {
         let rendererMaterial: [String]
         switch request.kind {
         case .d2:
             rendererMaterial = [
                 D2RenderService.rendererVersion,
+                tool.cacheDescriptor,
                 request.configuration.d2.cacheDescriptor,
+                request.configuration.appearance,
             ]
         case .mermaid:
             rendererMaterial = [
                 MermaidRenderService.rendererVersion,
+                tool.cacheDescriptor,
                 request.configuration.mermaidTheme.rawValue,
                 request.configuration.appearance,
             ]

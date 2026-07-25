@@ -306,11 +306,19 @@ final class NativePreviewHighlightingTests: XCTestCase {
 }
 
 final class NativePreviewDiagramTests: XCTestCase {
-    func testBundledMermaidRuntimeProducesSanitizableSVGOffline() async throws {
+    func testLocalMermaidCLIProducesSanitizableSVG() async throws {
+        let fixture = try makeFakeMermaidCLI()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let tool = InstalledDiagramTool(
+            kind: .mermaid,
+            executableURL: fixture.executable,
+            version: "11.16.0"
+        )
         let rawSVG = try await MermaidRenderService.shared.render(
             source: "flowchart LR\n  A --> B",
             theme: .default,
-            appearance: "light"
+            appearance: "light",
+            tool: tool
         )
         let document = try await SVGSanitizer.shared.sanitize(rawSVG)
 
@@ -321,12 +329,18 @@ final class NativePreviewDiagramTests: XCTestCase {
     }
 
     func testDiagramCacheKeyTracksContentAndThemeButNotViewRevision() async throws {
+        let fixture = try makeFakeMermaidCLI()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let registry = DiagramToolRegistry(
+            automaticDirectories: [fixture.directory]
+        )
+        let coordinator = DiagramRenderCoordinator(toolRegistry: registry)
         let configuration = DiagramConfiguration(
             mermaidTheme: .default,
             appearance: "light",
             d2: .preview
         )
-        let first = try await DiagramRenderCoordinator.shared.render(
+        let first = try await coordinator.render(
             DiagramRenderRequest(
                 blockID: PreviewBlockID(rawValue: "first"),
                 revision: 1,
@@ -335,7 +349,7 @@ final class NativePreviewDiagramTests: XCTestCase {
                 configuration: configuration
             )
         )
-        let second = try await DiagramRenderCoordinator.shared.render(
+        let second = try await coordinator.render(
             DiagramRenderRequest(
                 blockID: PreviewBlockID(rawValue: "second"),
                 revision: 99,
@@ -344,7 +358,7 @@ final class NativePreviewDiagramTests: XCTestCase {
                 configuration: configuration
             )
         )
-        let dark = try await DiagramRenderCoordinator.shared.render(
+        let dark = try await coordinator.render(
             DiagramRenderRequest(
                 blockID: PreviewBlockID(rawValue: "dark"),
                 revision: 100,
@@ -361,5 +375,39 @@ final class NativePreviewDiagramTests: XCTestCase {
         XCTAssertEqual(first.cacheKey, second.cacheKey)
         XCTAssertEqual(first.document.digest, second.document.digest)
         XCTAssertNotEqual(first.cacheKey, dark.cacheKey)
+    }
+
+    private func makeFakeMermaidCLI() throws -> (directory: URL, executable: URL) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let executable = directory.appendingPathComponent("mmdc")
+        let script = """
+        #!/bin/sh
+        if [ "$1" = "--version" ]; then
+          printf '11.16.0\\n'
+          exit 0
+        fi
+        output=""
+        theme="default"
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            -o) output="$2"; shift 2 ;;
+            -t) theme="$2"; shift 2 ;;
+            *) shift ;;
+          esac
+        done
+        [ -n "$output" ] || exit 8
+        printf '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80"><text x="8" y="24">%s</text></svg>' "$theme" > "$output"
+        """
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executable.path
+        )
+        return (directory, executable)
     }
 }

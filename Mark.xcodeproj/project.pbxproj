@@ -7,10 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D20000010000000000000001 /* d2 in Embed Helpers */ = {isa = PBXBuildFile; fileRef = D20000020000000000000002 /* d2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		D30000010000000000000001 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = D30000020000000000000002 /* LICENSE */; };
 		E30000000000000000000001 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = E20000000000000000000001 /* Markdown */; };
-		E30000000000000000000002 /* SVGView in Frameworks */ = {isa = PBXBuildFile; productRef = E20000000000000000000002 /* SVGView */; };
 		E30000000000000000000003 /* SwiftTreeSitter in Frameworks */ = {isa = PBXBuildFile; productRef = E20000000000000000000003 /* SwiftTreeSitter */; };
 		E30000000000000000000004 /* SwiftTreeSitterLayer in Frameworks */ = {isa = PBXBuildFile; productRef = E20000000000000000000004 /* SwiftTreeSitterLayer */; };
 		E30000000000000000000005 /* TreeSitterSwift in Frameworks */ = {isa = PBXBuildFile; productRef = E20000000000000000000005 /* TreeSitterSwift */; };
@@ -32,24 +30,9 @@
 		};
 /* End PBXContainerItemProxy section */
 
-/* Begin PBXCopyFilesBuildPhase section */
-		D20000040000000000000004 /* Embed Helpers */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = Contents/Helpers;
-			dstSubfolderSpec = 1;
-			files = (
-				D20000010000000000000001 /* d2 in Embed Helpers */,
-			);
-			name = "Embed Helpers";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
 		A19D4CC73008804300E085C0 /* DiagramDown.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DiagramDown.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B15000010000000000000001 /* MarkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MarkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		D20000020000000000000002 /* d2 */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = d2; sourceTree = "<group>"; };
 		D30000020000000000000002 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -72,7 +55,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				E30000000000000000000001 /* Markdown in Frameworks */,
-				E30000000000000000000002 /* SVGView in Frameworks */,
 				E30000000000000000000003 /* SwiftTreeSitter in Frameworks */,
 				E30000000000000000000004 /* SwiftTreeSitterLayer in Frameworks */,
 				E30000000000000000000005 /* TreeSitterSwift in Frameworks */,
@@ -100,7 +82,6 @@
 			children = (
 				A19D4CC93008804300E085C0 /* Mark */,
 				B15000020000000000000002 /* MarkTests */,
-				D20000030000000000000003 /* Helpers */,
 				D30000020000000000000002 /* LICENSE */,
 				A19D4CC83008804300E085C0 /* Products */,
 			);
@@ -115,14 +96,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		D20000030000000000000003 /* Helpers */ = {
-			isa = PBXGroup;
-			children = (
-				D20000020000000000000002 /* d2 */,
-			);
-			path = Helpers;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -133,7 +106,6 @@
 				A19D4CC33008804300E085C0 /* Sources */,
 				A19D4CC43008804300E085C0 /* Frameworks */,
 				A19D4CC53008804300E085C0 /* Resources */,
-				D20000040000000000000004 /* Embed Helpers */,
 			);
 			buildRules = (
 			);
@@ -145,7 +117,6 @@
 			name = Mark;
 			packageProductDependencies = (
 				E20000000000000000000001 /* Markdown */,
-				E20000000000000000000002 /* SVGView */,
 				E20000000000000000000003 /* SwiftTreeSitter */,
 				E20000000000000000000004 /* SwiftTreeSitterLayer */,
 				E20000000000000000000005 /* TreeSitterSwift */,
@@ -213,7 +184,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				E10000000000000000000001 /* XCRemoteSwiftPackageReference "swift-markdown" */,
-				E10000000000000000000002 /* XCRemoteSwiftPackageReference "SVGView" */,
 				E10000000000000000000003 /* XCRemoteSwiftPackageReference "swift-tree-sitter" */,
 				E10000000000000000000004 /* XCRemoteSwiftPackageReference "tree-sitter-swift" */,
 				E10000000000000000000005 /* XCRemoteSwiftPackageReference "tree-sitter-lua" */,
@@ -403,16 +373,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Mark/DiagramDown.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = QM6DZQY23F;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -438,17 +405,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Mark/DiagramDown.entitlements;
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 22;
 				DEVELOPMENT_TEAM = QM6DZQY23F;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -513,11 +477,6 @@
 			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
 			requirement = { kind = exactVersion; version = 0.8.0; };
 		};
-		E10000000000000000000002 /* XCRemoteSwiftPackageReference "SVGView" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/exyte/SVGView.git";
-			requirement = { kind = exactVersion; version = 1.0.6; };
-		};
 		E10000000000000000000003 /* XCRemoteSwiftPackageReference "swift-tree-sitter" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/tree-sitter/swift-tree-sitter.git";
@@ -565,11 +524,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E10000000000000000000001 /* XCRemoteSwiftPackageReference "swift-markdown" */;
 			productName = Markdown;
-		};
-		E20000000000000000000002 /* SVGView */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = E10000000000000000000002 /* XCRemoteSwiftPackageReference "SVGView" */;
-			productName = SVGView;
 		};
 		E20000000000000000000003 /* SwiftTreeSitter */ = {
 			isa = XCSwiftPackageProductDependency;

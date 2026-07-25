@@ -31,12 +31,12 @@
 
 DiagramDown brings prose and diagrams into one focused workspace. Open a folder,
 write naturally in Markdown, and see the finished document update beside you.
-Mermaid and D2 fenced blocks become live diagrams without a browser, server, or
-cloud account.
+Mermaid and D2 fenced blocks become live diagrams through command-line tools
+installed on your Mac, without a server or cloud account.
 
-Everything needed for the native SwiftUI preview, diagrams, Tree-sitter syntax
-highlighting, and formatting is bundled with the app. Your documents stay on
-your Mac.
+The native SwiftUI preview, Tree-sitter syntax highlighting, and formatting
+runtime are bundled with the app. DiagramDown calls local `mmdc` and `d2`
+executables directly; your documents stay on your Mac.
 
 ## Made for real Markdown projects
 
@@ -57,6 +57,16 @@ or **Preview Only**.
 2. Drag `DiagramDown.app` into the Applications shortcut.
 3. Open a folder containing `.md` or `.markdown` files and start writing.
 
+For diagram previews, install either or both optional tools:
+
+```sh
+brew install mermaid-cli
+brew install d2
+```
+
+Missing tools simply leave their fenced source visible as code. Their detected
+versions and paths are shown under **Settings > Diagram Tools**.
+
 DiagramDown requires macOS 15 or later.
 
 > [!IMPORTANT]
@@ -68,7 +78,7 @@ DiagramDown requires macOS 15 or later.
 ## Current release
 
 DiagramDown `0.22.0` is an Apple Silicon release. It includes folder workspaces,
-crash-safe session recovery, offline Mermaid and D2 rendering, bidirectional
+crash-safe session recovery, local Mermaid and D2 CLI rendering, bidirectional
 scroll sync, formatting, themes, diagram SVG export, and full-preview PDF export.
 
 Intel Macs, automatic updates, external-change conflict handling, and sidebar
@@ -82,7 +92,7 @@ Requirements:
 - macOS 15 or later
 - Apple Silicon
 - Xcode with the macOS SDK
-- Node.js 18 or later for bundled-runtime tests
+- Node.js 18 or later for formatter-runtime tests
 
 Open `Mark.xcodeproj` and run the `Mark` scheme, or use:
 

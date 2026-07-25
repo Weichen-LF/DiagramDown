@@ -3,6 +3,7 @@
 //  DiagramDown
 //
 
+import AppKit
 import SwiftUI
 
 enum PreviewPreferences {
@@ -120,9 +121,36 @@ struct PreviewSettingsView: View {
         D2RenderConfiguration.preview.padding
     @AppStorage(PreviewPreferences.d2SketchKey) private var d2Sketch =
         D2RenderConfiguration.preview.sketch
+    @State private var mermaidToolStatus = DiagramToolStatus.missing
+    @State private var d2ToolStatus = DiagramToolStatus.missing
+    @State private var isRefreshingTools = false
 
     var body: some View {
         Form {
+            Section("Diagram Tools") {
+                toolStatusRow(kind: .mermaid, status: mermaidToolStatus)
+                Divider()
+                toolStatusRow(kind: .d2, status: d2ToolStatus)
+
+                HStack {
+                    Text("Diagram rendering uses command-line tools installed on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await refreshTools() }
+                    } label: {
+                        if isRefreshingTools {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(isRefreshingTools)
+                }
+            }
+
             Section("Appearance") {
                 Picker("Color mode", selection: $appearance) {
                     ForEach(AppAppearance.allCases) { appearance in
@@ -197,7 +225,139 @@ struct PreviewSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 640)
+        .frame(width: 560, height: 820)
+        .task {
+            await refreshTools()
+        }
+    }
+
+    @ViewBuilder
+    private func toolStatusRow(
+        kind: DiagramToolKind,
+        status: DiagramToolStatus
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
+                Label(kind.displayName, systemImage: statusIcon(status))
+                    .font(.headline)
+                    .foregroundStyle(statusColor(status))
+                Spacer()
+                Button("Choose…") {
+                    chooseExecutable(for: kind)
+                }
+                if UserDefaults.standard.string(
+                    forKey: kind.customPathPreferenceKey
+                ) != nil {
+                    Button("Use Automatically Detected") {
+                        Task {
+                            let updated = await DiagramToolRegistry.shared
+                                .setCustomExecutable(nil, for: kind)
+                            apply(updated, for: kind)
+                        }
+                    }
+                }
+            }
+
+            switch status {
+            case .installed(let tool):
+                Text(tool.version)
+                    .font(.subheadline)
+                Text(tool.executableURL.path)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            case .missing:
+                Text("Not installed. Diagrams of this type are shown as code blocks.")
+                    .font(.subheadline)
+                installCommandRow(kind.installCommand)
+                if kind == .mermaid {
+                    Text("Upstream alternative: npm install -g @mermaid-js/mermaid-cli")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            case .invalid(let path, let message):
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.red)
+                Text(path)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                installCommandRow(kind.installCommand)
+            }
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func installCommandRow(_ command: String) -> some View {
+        HStack {
+            Text(command)
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+            Spacer()
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(command, forType: .string)
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            .labelStyle(.iconOnly)
+            .help("Copy installation command")
+        }
+        .padding(7)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func statusIcon(_ status: DiagramToolStatus) -> String {
+        switch status {
+        case .installed: "checkmark.circle.fill"
+        case .missing: "questionmark.circle"
+        case .invalid: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private func statusColor(_ status: DiagramToolStatus) -> Color {
+        switch status {
+        case .installed: .green
+        case .missing: .secondary
+        case .invalid: .red
+        }
+    }
+
+    private func refreshTools() async {
+        isRefreshingTools = true
+        let statuses = await DiagramToolRegistry.shared.refreshAll(notifyViews: true)
+        mermaidToolStatus = statuses[.mermaid] ?? .missing
+        d2ToolStatus = statuses[.d2] ?? .missing
+        isRefreshingTools = false
+    }
+
+    private func chooseExecutable(for kind: DiagramToolKind) {
+        let panel = NSOpenPanel()
+        panel.title = "Choose \(kind.displayName) Executable"
+        panel.prompt = "Choose"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        Task {
+            let status = await DiagramToolRegistry.shared
+                .setCustomExecutable(url, for: kind)
+            apply(status, for: kind)
+        }
+    }
+
+    private func apply(_ status: DiagramToolStatus, for kind: DiagramToolKind) {
+        switch kind {
+        case .mermaid:
+            mermaidToolStatus = status
+        case .d2:
+            d2ToolStatus = status
+        }
     }
 
     private func restoreDefaults() {

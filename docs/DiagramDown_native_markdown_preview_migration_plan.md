@@ -1,5 +1,9 @@
 # DiagramDown 原生 Markdown 预览迁移方案
 
+> **2026-07 更新：** 原生 Markdown 预览迁移已经完成，最终的图表架构又进一步改为调用用户本机的 `mmdc` 和 `d2`。应用不再集成 Mermaid、D2、SVGView 或任何 WKWebView。当前实现以
+> [`native-markdown-preview-architecture.md`](native-markdown-preview-architecture.md)
+> 为准；本文保留为原始迁移设计记录。
+
 **目标读者：** Codex / DiagramDown 实现者  
 **适用基线：** DiagramDown `0.22.x`，macOS 15+，Apple Silicon  
 **文档状态：** Implementation-ready  
