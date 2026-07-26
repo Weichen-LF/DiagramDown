@@ -562,6 +562,7 @@ final class WorkspaceRecoveryStoreTests: XCTestCase {
     }
 }
 
+@MainActor
 final class WorkspaceLaunchRestorationTests: XCTestCase {
     private final class MemoryStorage: WorkspaceLaunchStorage {
         private var values: [String: Any] = [:]
@@ -601,7 +602,6 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
         XCTAssertNil(invalidState.takeReference(from: nil))
     }
 
-    @MainActor
     func testRecentWorkspacesAreDeduplicatedPersistedAndClearable() {
         let storageKey = "last"
         let recentStorageKey = "recent"
