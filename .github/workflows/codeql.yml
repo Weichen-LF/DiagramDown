@@ -31,7 +31,6 @@ jobs:
       matrix:
         language:
           - actions
-          - javascript-typescript
 
     steps:
       - name: Check out source

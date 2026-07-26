@@ -4,7 +4,23 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "Mark/**"
+      - "MarkTests/**"
+      - "Mark.xcodeproj/**"
+      - "Tests/**"
+      - "Config/**"
+      - "Info.plist"
+      - "Scripts/test.sh"
   pull_request:
+    paths:
+      - "Mark/**"
+      - "MarkTests/**"
+      - "Mark.xcodeproj/**"
+      - "Tests/**"
+      - "Config/**"
+      - "Info.plist"
+      - "Scripts/test.sh"
   workflow_dispatch:
 
 permissions:
