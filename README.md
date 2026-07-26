@@ -77,7 +77,7 @@ DiagramDown requires macOS 15 or later.
 
 ## Current release
 
-DiagramDown `0.22.0` is an Apple Silicon release. It includes folder workspaces,
+DiagramDown `0.23.0` is an Apple Silicon release. It includes folder workspaces,
 crash-safe session recovery, local Mermaid and D2 CLI rendering, bidirectional
 scroll sync, formatting, themes, diagram SVG export, and full-preview PDF export.
 

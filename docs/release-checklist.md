@@ -30,11 +30,13 @@ GUI automation and Computer Use are not part of this release gate. The combined 
 
 ## 4. Publish
 
-Create and push an annotated tag from the merged `main` commit:
+Create and push an annotated tag from the merged `main` commit, replacing
+`<version>` with the prepared release version:
 
 ```sh
-git tag -a v0.22.0 -m "Release DiagramDown 0.22.0"
-git push origin v0.22.0
+version="<version>"
+git tag -a "v${version}" -m "Release DiagramDown ${version}"
+git push origin "v${version}"
 ```
 
 The `Release` GitHub Actions workflow will rerun tests, build the package, validate it, and create the GitHub Release.
@@ -53,7 +55,7 @@ shasum -a 256 -c DiagramDown-<version>-arm64.dmg.sha256
 ```
 
 - [ ] Confirm the checksum reports `OK`.
-- [ ] Confirm `gh release view v0.22.0` reports the intended tag, title, notes, and assets.
+- [ ] Confirm `gh release view "v${version}"` reports the intended tag, title, notes, and assets.
 - [ ] Confirm the README's latest-release link resolves to the new release.
 
 ## 6. After publication

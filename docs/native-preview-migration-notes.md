@@ -100,13 +100,15 @@ manual release-candidate gate and are not marked complete.
 
 ## Community Release Verification
 
-On 2026-07-25, `Scripts/test.sh`, the opt-in benchmark, and
-`Scripts/package-release.sh --skip-tests --allow-dirty --expected-version
-0.22.0` passed on the machine above. The resulting 0.22.0 (22) arm64 app was
+The opt-in benchmark results above were captured on 2026-07-25. On 2026-07-26,
+`Scripts/test.sh` and `Scripts/package-release.sh --skip-tests --allow-dirty
+--expected-version 0.23.0` passed on the same machine. The resulting 0.23.0
+(23) arm64 app was
 ad-hoc signed with Hardened Runtime and passed `validate-release.sh --adhoc`.
 Validation confirmed no App Sandbox entitlement, WebKit or JavaScriptCore
 linkage, bundled Mermaid/D2 runtime, SVGView, or Prettier formatter assets.
+Real SVG smoke tests also passed with Mermaid CLI 11.16.0 and D2 0.7.1.
 
 The packaged app was 23,456 KiB and the DMG was 7,380 KiB. The DMG SHA-256 was
-`ca67c7749d59f8bcc9b79e20ef785467839c7e484af574ca0799465157e0a160`.
+`91c2723dff9289febd2304b5872bbbfee8d86229f03ec53eadd42814cbbadaeb`.
 Developer ID signing and notarization were not performed.

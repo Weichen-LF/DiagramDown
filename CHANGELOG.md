@@ -6,6 +6,8 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-07-26
+
 ### Added
 
 - Local Mermaid CLI and D2 discovery, version checks, custom executable paths,
