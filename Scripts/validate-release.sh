@@ -89,7 +89,11 @@ for license_name in \
   TreeSitterJavaScript-LICENSE.txt \
   TreeSitterTypeScript-LICENSE.txt \
   TreeSitterJSON-LICENSE.txt \
-  TreeSitterBash-LICENSE.txt
+  TreeSitterBash-LICENSE.txt \
+  TreeSitterPython-LICENSE.txt \
+  TreeSitterGo-LICENSE.txt \
+  TreeSitterDockerfile-LICENSE.txt \
+  TreeSitterSqlBigquery-LICENSE.txt
 do
   [[ -f "$app_path/Contents/Resources/$license_name" ]] || fail "Missing bundled license: $license_name"
 done

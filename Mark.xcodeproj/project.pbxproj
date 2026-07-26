@@ -18,6 +18,10 @@
 		E30000000000000000000009 /* TreeSitterTypeScript in Frameworks */ = {isa = PBXBuildFile; productRef = E20000000000000000000009 /* TreeSitterTypeScript */; };
 		E3000000000000000000000A /* TreeSitterJSON in Frameworks */ = {isa = PBXBuildFile; productRef = E2000000000000000000000A /* TreeSitterJSON */; };
 		E3000000000000000000000B /* TreeSitterBash in Frameworks */ = {isa = PBXBuildFile; productRef = E2000000000000000000000B /* TreeSitterBash */; };
+		E3000000000000000000000C /* TreeSitterPython in Frameworks */ = {isa = PBXBuildFile; productRef = E2000000000000000000000C /* TreeSitterPython */; };
+		E3000000000000000000000D /* TreeSitterGo in Frameworks */ = {isa = PBXBuildFile; productRef = E2000000000000000000000D /* TreeSitterGo */; };
+		E3000000000000000000000E /* TreeSitterDockerfile in Frameworks */ = {isa = PBXBuildFile; productRef = E2000000000000000000000E /* TreeSitterDockerfile */; };
+		E3000000000000000000000F /* TreeSitterSqlBigquery in Frameworks */ = {isa = PBXBuildFile; productRef = E2000000000000000000000F /* TreeSitterSqlBigquery */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +68,10 @@
 				E30000000000000000000009 /* TreeSitterTypeScript in Frameworks */,
 				E3000000000000000000000A /* TreeSitterJSON in Frameworks */,
 				E3000000000000000000000B /* TreeSitterBash in Frameworks */,
+				E3000000000000000000000C /* TreeSitterPython in Frameworks */,
+				E3000000000000000000000D /* TreeSitterGo in Frameworks */,
+				E3000000000000000000000E /* TreeSitterDockerfile in Frameworks */,
+				E3000000000000000000000F /* TreeSitterSqlBigquery in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +134,10 @@
 				E20000000000000000000009 /* TreeSitterTypeScript */,
 				E2000000000000000000000A /* TreeSitterJSON */,
 				E2000000000000000000000B /* TreeSitterBash */,
+				E2000000000000000000000C /* TreeSitterPython */,
+				E2000000000000000000000D /* TreeSitterGo */,
+				E2000000000000000000000E /* TreeSitterDockerfile */,
+				E2000000000000000000000F /* TreeSitterSqlBigquery */,
 			);
 			productName = DiagramDown;
 			productReference = A19D4CC73008804300E085C0 /* DiagramDown.app */;
@@ -192,6 +204,10 @@
 				E10000000000000000000008 /* XCRemoteSwiftPackageReference "tree-sitter-typescript" */,
 				E10000000000000000000009 /* XCRemoteSwiftPackageReference "tree-sitter-json" */,
 				E1000000000000000000000A /* XCRemoteSwiftPackageReference "tree-sitter-bash" */,
+				E1000000000000000000000B /* XCRemoteSwiftPackageReference "tree-sitter-python" */,
+				E1000000000000000000000C /* XCRemoteSwiftPackageReference "tree-sitter-go" */,
+				E1000000000000000000000D /* XCRemoteSwiftPackageReference "tree-sitter-dockerfile" */,
+				E1000000000000000000000E /* XCRemoteSwiftPackageReference "tree-sitter-sql-bigquery" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A19D4CC83008804300E085C0 /* Products */;
@@ -517,6 +533,26 @@
 			repositoryURL = "https://github.com/tree-sitter/tree-sitter-bash.git";
 			requirement = { kind = exactVersion; version = 0.25.1; };
 		};
+		E1000000000000000000000B /* XCRemoteSwiftPackageReference "tree-sitter-python" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tree-sitter/tree-sitter-python.git";
+			requirement = { kind = exactVersion; version = 0.23.6; };
+		};
+		E1000000000000000000000C /* XCRemoteSwiftPackageReference "tree-sitter-go" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tree-sitter/tree-sitter-go.git";
+			requirement = { kind = exactVersion; version = 0.25.0; };
+		};
+		E1000000000000000000000D /* XCRemoteSwiftPackageReference "tree-sitter-dockerfile" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/camdencheek/tree-sitter-dockerfile.git";
+			requirement = { kind = exactVersion; version = 0.2.0; };
+		};
+		E1000000000000000000000E /* XCRemoteSwiftPackageReference "tree-sitter-sql-bigquery" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/takegue/tree-sitter-sql-bigquery.git";
+			requirement = { kind = exactVersion; version = 0.8.0; };
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -569,6 +605,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E1000000000000000000000A /* XCRemoteSwiftPackageReference "tree-sitter-bash" */;
 			productName = TreeSitterBash;
+		};
+		E2000000000000000000000C /* TreeSitterPython */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1000000000000000000000B /* XCRemoteSwiftPackageReference "tree-sitter-python" */;
+			productName = TreeSitterPython;
+		};
+		E2000000000000000000000D /* TreeSitterGo */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1000000000000000000000C /* XCRemoteSwiftPackageReference "tree-sitter-go" */;
+			productName = TreeSitterGo;
+		};
+		E2000000000000000000000E /* TreeSitterDockerfile */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1000000000000000000000D /* XCRemoteSwiftPackageReference "tree-sitter-dockerfile" */;
+			productName = TreeSitterDockerfile;
+		};
+		E2000000000000000000000F /* TreeSitterSqlBigquery */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E1000000000000000000000E /* XCRemoteSwiftPackageReference "tree-sitter-sql-bigquery" */;
+			productName = TreeSitterSqlBigquery;
 		};
 /* End XCSwiftPackageProductDependency section */
 

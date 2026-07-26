@@ -154,6 +154,14 @@ struct EditorPreviewSurface: View {
                     ? nil
                     : FormatDocumentAction(perform: session.editorController.formatDocument)
             )
+            .focusedSceneValue(
+                \.markdownEditMenuAction,
+                activeViewMode == .previewOnly
+                    ? nil
+                    : MarkdownEditMenuAction(
+                        perform: session.editorController.perform
+                    )
+            )
     }
 
     @ViewBuilder

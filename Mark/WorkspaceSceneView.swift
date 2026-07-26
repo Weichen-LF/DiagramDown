@@ -21,6 +21,10 @@ struct WorkspaceSceneView: View {
             \.workspaceOpenFolderAction,
             WorkspaceOpenFolderAction(perform: openFolder)
         )
+        .focusedSceneValue(
+            \.workspaceOpenReferenceAction,
+            WorkspaceOpenReferenceAction(perform: openWorkspace)
+        )
         .task {
             guard reference == nil,
                   let recovered =
@@ -35,6 +39,10 @@ struct WorkspaceSceneView: View {
         guard let selected = WorkspaceFolderPicker.choose() else {
             return
         }
+        openWorkspace(selected)
+    }
+
+    private func openWorkspace(_ selected: WorkspaceReference) {
         WorkspaceLaunchRestoration.shared.remember(selected)
         reference = selected
     }

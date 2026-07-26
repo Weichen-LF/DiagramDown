@@ -14,6 +14,8 @@ nonisolated struct WorkspaceRecoverySnapshot: Codable, Equatable, Sendable {
     let openFiles: [WorkspaceBufferRecoverySnapshot]
     let activeFileID: UUID?
     let sidebarVisible: Bool
+    let sidebarWidth: Double?
+    let windowFrame: WorkspaceWindowFrame?
     let expandedDirectoryIDs: Set<String>
 
     init(
@@ -23,6 +25,8 @@ nonisolated struct WorkspaceRecoverySnapshot: Codable, Equatable, Sendable {
         openFiles: [WorkspaceBufferRecoverySnapshot],
         activeFileID: UUID?,
         sidebarVisible: Bool,
+        sidebarWidth: Double? = nil,
+        windowFrame: WorkspaceWindowFrame? = nil,
         expandedDirectoryIDs: Set<String>
     ) {
         self.schemaVersion = schemaVersion
@@ -31,8 +35,17 @@ nonisolated struct WorkspaceRecoverySnapshot: Codable, Equatable, Sendable {
         self.openFiles = openFiles
         self.activeFileID = activeFileID
         self.sidebarVisible = sidebarVisible
+        self.sidebarWidth = sidebarWidth
+        self.windowFrame = windowFrame
         self.expandedDirectoryIDs = expandedDirectoryIDs
     }
+}
+
+nonisolated struct WorkspaceWindowFrame: Codable, Equatable, Sendable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
 }
 
 nonisolated struct WorkspaceBufferRecoverySnapshot: Codable, Equatable, Sendable {

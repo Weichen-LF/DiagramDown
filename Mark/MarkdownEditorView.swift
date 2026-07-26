@@ -15,6 +15,10 @@ final class MarkdownEditorController: ObservableObject {
     func formatDocument() {
         coordinator?.formatDocument()
     }
+
+    func perform(_ action: MarkdownEditAction) {
+        coordinator?.perform(action)
+    }
 }
 
 struct MarkdownEditorView: NSViewRepresentable {
@@ -232,6 +236,25 @@ struct MarkdownEditorView: NSViewRepresentable {
                     showFormattingError(error)
                 }
             }
+        }
+
+        func perform(_ action: MarkdownEditAction) {
+            guard let textView else {
+                return
+            }
+            let result = MarkdownEditTransformer.apply(
+                action,
+                to: textView.string,
+                selection: textView.selectedRange()
+            )
+            let replacementRange = NSRange(
+                location: 0,
+                length: (textView.string as NSString).length
+            )
+            textView.breakUndoCoalescing()
+            textView.insertText(result.text, replacementRange: replacementRange)
+            textView.setSelectedRange(result.selection)
+            textView.breakUndoCoalescing()
         }
 
         private func showFormattingError(_ error: Error) {

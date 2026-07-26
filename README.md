@@ -40,13 +40,13 @@ executables directly; your documents stay on your Mac.
 
 ## Made for real Markdown projects
 
-- **Workspace first** — open a folder, browse its tree, and keep multiple files in tabs.
+- **Workspace first** — open recent folders, manage files from the tree, and keep multiple files in tabs.
 - **Native editing** — macOS text input, line numbers, Undo, Find, smooth scrolling, and familiar shortcuts.
 - **Live preview** — Markdown, Mermaid, D2, code highlighting, themes, and light/dark appearance.
 - **Local images** — preview common image formats through relative, absolute, or `file://` paths.
 - **Diagram friendly** — inspect diagrams in a focused viewer, pinch to zoom, and export SVG.
 - **Stay in sync** — scroll either pane or click the preview to return to the matching source.
-- **Pick up where you left off** — restore the last folder, tabs, layout, scroll position, and unsaved edits.
+- **Pick up where you left off** — restore the last folder, window, sidebar, tabs, layout, scroll position, and unsaved edits.
 - **Finish the document** — format Markdown and embedded code, then export the complete preview as PDF.
 
 Choose the layout that fits the moment: **Editor Only**, **Editor and Preview**,
@@ -78,12 +78,12 @@ DiagramDown requires macOS 15 or later.
 
 ## Current release
 
-DiagramDown `0.23.0` is an Apple Silicon release. It includes folder workspaces,
-crash-safe session recovery, local Mermaid and D2 CLI rendering, bidirectional
-scroll sync, formatting, themes, diagram SVG export, and full-preview PDF export.
+DiagramDown `0.24.0` is an Apple Silicon release. It adds external-change
+conflict handling, sidebar file management, restored window and sidebar
+geometry, Open Recent, richer Markdown editing commands, more Tree-sitter
+grammars, and improved local Mermaid and image previews.
 
-Intel Macs, automatic updates, external-change conflict handling, and sidebar
-file operations are not available yet.
+Intel Macs and automatic updates are not available yet.
 
 <details>
 <summary><strong>Build from source</strong></summary>

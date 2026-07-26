@@ -5,8 +5,8 @@
 
 import Foundation
 
-struct D2RenderConfiguration: Hashable, Sendable {
-    enum Layout: String, CaseIterable, Hashable, Identifiable, Sendable {
+nonisolated struct D2RenderConfiguration: Hashable, Sendable {
+    nonisolated enum Layout: String, CaseIterable, Hashable, Identifiable, Sendable {
         case dagre
         case elk
 
@@ -45,12 +45,12 @@ struct D2RenderConfiguration: Hashable, Sendable {
     }
 }
 
-struct D2RenderResult: Sendable {
+nonisolated struct D2RenderResult: Sendable {
     let svg: String
     let cacheHit: Bool
 }
 
-enum D2RenderError: LocalizedError, Sendable {
+nonisolated enum D2RenderError: LocalizedError, Sendable {
     case executableMissing
     case inputTooLarge
     case timedOut

@@ -385,9 +385,13 @@ final class NativePreviewHighlightingTests: XCTestCase {
         let registry = TreeSitterLanguageRegistry()
         for language in [
             CodeLanguage.bash,
+            .dockerfile,
+            .go,
             .javascript,
             .json,
             .lua,
+            .python,
+            .sql,
             .swift,
             .typescript,
             .tsx,
@@ -432,9 +436,13 @@ final class NativePreviewHighlightingTests: XCTestCase {
     func testBundledGrammarBatchProducesAttributedTokenRuns() async {
         let fixtures: [(CodeLanguage, String)] = [
             (.bash, "if true; then echo \"ready\"; fi"),
+            (.dockerfile, "FROM swift:latest\nRUN echo ready"),
+            (.go, "package main\nfunc main() { println(\"ready\") }"),
             (.javascript, "const answer = 42; // ready"),
             (.json, #"{"answer": 42, "ready": true}"#),
             (.lua, "local answer = 42 -- ready"),
+            (.python, "def answer() -> int:\n    return 42"),
+            (.sql, "SELECT answer FROM results WHERE ready = TRUE"),
             (.swift, "struct Answer { let value = 42 }"),
             (.typescript, "const answer: number = 42;"),
             (.tsx, "const view = <Text value={42} />;"),

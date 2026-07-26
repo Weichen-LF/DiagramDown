@@ -3,7 +3,62 @@
 //  DiagramDown
 //
 
+import AppKit
 import SwiftUI
+
+private struct WorkspaceSidebarWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 260
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private enum WorkspaceNamingRequest {
+    case createFile(parent: FileTreeNode?)
+    case createDirectory(parent: FileTreeNode?)
+    case rename(FileTreeNode)
+
+    var title: String {
+        switch self {
+        case .createFile:
+            "New Markdown File"
+        case .createDirectory:
+            "New Folder"
+        case .rename:
+            "Rename Item"
+        }
+    }
+
+    var prompt: String {
+        switch self {
+        case .createFile:
+            "File name"
+        case .createDirectory:
+            "Folder name"
+        case .rename:
+            "New name"
+        }
+    }
+
+    var actionTitle: String {
+        switch self {
+        case .rename:
+            "Rename"
+        default:
+            "Create"
+        }
+    }
+
+    var initialName: String {
+        switch self {
+        case .rename(let node):
+            node.name
+        default:
+            ""
+        }
+    }
+}
 
 struct WorkspaceWindowView: View {
     let reference: WorkspaceReference
@@ -40,12 +95,27 @@ struct WorkspaceWindowView: View {
 private struct WorkspaceContentView: View {
     @ObservedObject var session: WorkspaceSession
     @State private var pendingCloseFileID: OpenFileBuffer.ID?
+    @State private var namingRequest: WorkspaceNamingRequest?
+    @State private var itemName = ""
+    @State private var pendingDeleteNode: FileTreeNode?
 
     var body: some View {
         HSplitView {
             if session.sidebarVisible {
                 sidebar
-                    .frame(minWidth: 190, idealWidth: 260, maxWidth: 420)
+                    .frame(
+                        minWidth: 190,
+                        idealWidth: session.sidebarWidth,
+                        maxWidth: 420
+                    )
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: WorkspaceSidebarWidthPreferenceKey.self,
+                                value: proxy.size.width
+                            )
+                        }
+                    }
             }
 
             workspaceDetail
@@ -74,13 +144,26 @@ private struct WorkspaceContentView: View {
                     }
                 }
         )
+        .focusedSceneValue(
+            \.workspaceCloseFileAction,
+            session.activeFileID.map { id in
+                WorkspaceCloseFileAction {
+                    requestClose(id)
+                }
+            }
+        )
         .task {
             await session.loadRoot()
+            session.startMonitoringExternalChanges()
         }
         .onDisappear {
+            session.stopMonitoringExternalChanges()
             Task {
                 await session.persistRecoveryNow()
             }
+        }
+        .onPreferenceChange(WorkspaceSidebarWidthPreferenceKey.self) { width in
+            session.setSidebarWidth(width)
         }
         .alert(
             "Workspace Error",
@@ -122,6 +205,52 @@ private struct WorkspaceContentView: View {
         } message: {
             Text("Your changes will be lost if you don’t save them.")
         }
+        .alert(
+            namingRequest?.title ?? "",
+            isPresented: Binding(
+                get: { namingRequest != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        namingRequest = nil
+                    }
+                }
+            )
+        ) {
+            TextField(namingRequest?.prompt ?? "Name", text: $itemName)
+            Button(namingRequest?.actionTitle ?? "Create") {
+                performNamingRequest()
+            }
+            .disabled(itemName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) {
+                namingRequest = nil
+            }
+        }
+        .confirmationDialog(
+            "Delete \(pendingDeleteNode?.name ?? "item")?",
+            isPresented: Binding(
+                get: { pendingDeleteNode != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        pendingDeleteNode = nil
+                    }
+                }
+            )
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let node = pendingDeleteNode else {
+                    return
+                }
+                pendingDeleteNode = nil
+                Task {
+                    await session.deleteItem(node)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteNode = nil
+            }
+        } message: {
+            Text("This cannot be undone. Open files inside the item will be closed.")
+        }
     }
 
     private var workspaceDetail: some View {
@@ -139,7 +268,20 @@ private struct WorkspaceContentView: View {
             if let activeFile = session.activeFile {
                 WorkspaceEditorContainer(
                     buffer: activeFile,
-                    workspaceRootURL: session.rootURL
+                    workspaceRootURL: session.rootURL,
+                    reloadFromDisk: {
+                        Task {
+                            await session.reloadFileFromDisk(id: activeFile.id)
+                        }
+                    },
+                    overwriteDisk: {
+                        Task {
+                            await session.overwriteFile(id: activeFile.id)
+                        }
+                    },
+                    close: {
+                        requestClose(activeFile.id)
+                    }
                 )
             } else {
                 ContentUnavailableView(
@@ -158,6 +300,18 @@ private struct WorkspaceContentView: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()
+                Menu {
+                    Button("New Markdown File…") {
+                        beginNaming(.createFile(parent: nil))
+                    }
+                    Button("New Folder…") {
+                        beginNaming(.createDirectory(parent: nil))
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .menuStyle(.borderlessButton)
+                .help("Create File or Folder")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
@@ -186,6 +340,16 @@ private struct WorkspaceContentView: View {
                                 .standardizedFileURL
                     ) {
                         handleTreeRow(row.node)
+                    } createFile: {
+                        beginNaming(.createFile(parent: row.node))
+                    } createDirectory: {
+                        beginNaming(.createDirectory(parent: row.node))
+                    } rename: {
+                        beginNaming(.rename(row.node))
+                    } move: {
+                        chooseMoveDestination(for: row.node)
+                    } delete: {
+                        pendingDeleteNode = row.node
                     }
                 }
                 .listStyle(.sidebar)
@@ -200,6 +364,54 @@ private struct WorkspaceContentView: View {
             } else {
                 await session.openFile(node)
             }
+        }
+    }
+
+    private func beginNaming(_ request: WorkspaceNamingRequest) {
+        namingRequest = request
+        itemName = request.initialName
+    }
+
+    private func performNamingRequest() {
+        guard let request = namingRequest else {
+            return
+        }
+        let name = itemName
+        namingRequest = nil
+        Task {
+            switch request {
+            case .createFile(let parent):
+                await session.createItem(
+                    named: name,
+                    kind: .markdownFile,
+                    in: parent
+                )
+            case .createDirectory(let parent):
+                await session.createItem(
+                    named: name,
+                    kind: .directory,
+                    in: parent
+                )
+            case .rename(let node):
+                await session.renameItem(node, to: name)
+            }
+        }
+    }
+
+    private func chooseMoveDestination(for node: FileTreeNode) {
+        let panel = NSOpenPanel()
+        panel.title = "Move \(node.name)"
+        panel.prompt = "Move"
+        panel.directoryURL = session.rootURL
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let destination = panel.url else {
+            return
+        }
+        Task {
+            await session.moveItem(node, into: destination)
         }
     }
 
@@ -280,6 +492,7 @@ private struct WorkspaceWindowCloseGuard: NSViewRepresentable {
             self.window = window
             originalDelegate = window.delegate
             window.delegate = self
+            applyRestoredFrame(to: window)
         }
 
         func detach() {
@@ -335,6 +548,48 @@ private struct WorkspaceWindowCloseGuard: NSViewRepresentable {
             return false
         }
 
+        func windowDidMove(_ notification: Notification) {
+            persistWindowFrame()
+            originalDelegate?.windowDidMove?(notification)
+        }
+
+        func windowDidResize(_ notification: Notification) {
+            persistWindowFrame()
+            originalDelegate?.windowDidResize?(notification)
+        }
+
+        private func applyRestoredFrame(to window: NSWindow) {
+            guard let stored = session.restoredWindowFrame else {
+                return
+            }
+            let frame = NSRect(
+                x: stored.x,
+                y: stored.y,
+                width: stored.width,
+                height: stored.height
+            )
+            guard NSScreen.screens.contains(where: {
+                $0.visibleFrame.intersects(frame)
+            }) else {
+                return
+            }
+            window.setFrame(frame, display: false)
+        }
+
+        private func persistWindowFrame() {
+            guard let frame = window?.frame else {
+                return
+            }
+            session.setWindowFrame(
+                WorkspaceWindowFrame(
+                    x: frame.origin.x,
+                    y: frame.origin.y,
+                    width: frame.width,
+                    height: frame.height
+                )
+            )
+        }
+
         override func responds(to selector: Selector!) -> Bool {
             super.responds(to: selector)
                 || originalDelegate?.responds(to: selector) == true
@@ -366,16 +621,82 @@ private final class WindowReaderView: NSView {
 private struct WorkspaceEditorContainer: View {
     @ObservedObject var buffer: OpenFileBuffer
     let workspaceRootURL: URL
+    let reloadFromDisk: () -> Void
+    let overwriteDisk: () -> Void
+    let close: () -> Void
 
     var body: some View {
-        EditorPreviewSurface(
-            text: $buffer.text,
-            fileURL: buffer.url,
-            workspaceRootURL: workspaceRootURL,
-            storedViewMode: $buffer.storedViewMode,
-            session: buffer.editorPreviewSession
-        )
-        .id(buffer.id)
+        VStack(spacing: 0) {
+            if let conflict = buffer.externalConflict {
+                WorkspaceConflictBanner(
+                    conflict: conflict,
+                    reloadFromDisk: reloadFromDisk,
+                    overwriteDisk: overwriteDisk,
+                    close: close
+                )
+                Divider()
+            }
+            EditorPreviewSurface(
+                text: $buffer.text,
+                fileURL: buffer.url,
+                workspaceRootURL: workspaceRootURL,
+                storedViewMode: $buffer.storedViewMode,
+                session: buffer.editorPreviewSession
+            )
+            .id(buffer.id)
+        }
+    }
+}
+
+private struct WorkspaceConflictBanner: View {
+    let conflict: WorkspaceExternalConflict
+    let reloadFromDisk: () -> Void
+    let overwriteDisk: () -> Void
+    let close: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if conflict == .modified {
+                Button("Reload from Disk", action: reloadFromDisk)
+            } else {
+                Button("Close File", action: close)
+            }
+            Button(conflict == .deleted ? "Recreate File" : "Overwrite Disk") {
+                overwriteDisk()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.1))
+    }
+
+    private var title: String {
+        switch conflict {
+        case .modified:
+            "This file changed outside DiagramDown."
+        case .deleted:
+            "This file was deleted outside DiagramDown."
+        }
+    }
+
+    private var message: String {
+        switch conflict {
+        case .modified:
+            "Reload the disk version or explicitly overwrite it with your current editor content."
+        case .deleted:
+            "Close the recovered editor copy or recreate the file from its current content."
+        }
     }
 }
 
@@ -460,6 +781,11 @@ private struct WorkspaceTreeRowView: View {
     let isLoading: Bool
     let isActive: Bool
     let activate: () -> Void
+    let createFile: () -> Void
+    let createDirectory: () -> Void
+    let rename: () -> Void
+    let move: () -> Void
+    let delete: () -> Void
 
     var body: some View {
         HStack(spacing: 5) {
@@ -496,6 +822,17 @@ private struct WorkspaceTreeRowView: View {
         }
         .listRowBackground(isActive ? Color.accentColor.opacity(0.14) : Color.clear)
         .help(row.node.relativePath)
+        .contextMenu {
+            if row.node.isDirectory {
+                Button("New Markdown File…", action: createFile)
+                Button("New Folder…", action: createDirectory)
+                Divider()
+            }
+            Button("Rename…", action: rename)
+            Button("Move To…", action: move)
+            Divider()
+            Button("Delete", role: .destructive, action: delete)
+        }
     }
 
     private var iconName: String {

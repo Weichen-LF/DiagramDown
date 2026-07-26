@@ -43,7 +43,11 @@ enum AppHelp {
         alert.informativeText = """
         Open Folder…        ⌘O
         Save                ⌘S
+        Close File          ⌘W
         Find                ⌘F
+        Bold                ⌘B
+        Italic              ⌘I
+        Link                ⌘K
         Format Document     ⇧⌥F
 
         Zoom In             ⌘+
