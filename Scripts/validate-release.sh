@@ -125,11 +125,6 @@ do
   [[ -f "$app_path/Contents/Resources/$grammar_bundle/Contents/Resources/queries/highlights.scm" ]] || fail "Missing highlights query in $grammar_bundle"
 done
 
-example_document="$app_path/Contents/Resources/DiagramDown-Example.md"
-[[ -f "$example_document" ]] || fail "Missing bundled example document."
-grep -q '^```mermaid$' "$example_document" || fail "The bundled example does not contain Mermaid source."
-grep -q '^```d2$' "$example_document" || fail "The bundled example does not contain D2 source."
-
 main_architectures="$(lipo -archs "$main_executable")"
 [[ "$main_architectures" == "arm64" ]] || fail "Main executable must be arm64-only, found: $main_architectures"
 

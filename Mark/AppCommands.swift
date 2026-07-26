@@ -16,17 +16,6 @@ enum DiagramDownLinks {
     )!
 }
 
-enum ExampleDocument {
-    static let resourceName = "DiagramDown-Example"
-
-    static func source(in bundle: Bundle = .main) throws -> String {
-        guard let url = bundle.url(forResource: resourceName, withExtension: "md") else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-}
-
 enum EditorGuidance {
     static let placeholder = "Start writing Markdown."
 }

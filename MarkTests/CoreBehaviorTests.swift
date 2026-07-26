@@ -587,15 +587,18 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
 
     @MainActor
     func testRecentWorkspacesAreDeduplicatedPersistedAndClearable() {
-        let suiteName = "WorkspaceLaunchRestorationTests.\(UUID().uuidString)"
+        let testID = UUID().uuidString
+        let suiteName = "WorkspaceLaunchRestorationTests.\(testID)"
+        let storageKey = "WorkspaceLaunchRestorationTests.\(testID).last"
+        let recentStorageKey = "WorkspaceLaunchRestorationTests.\(testID).recent"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let first = WorkspaceReference(id: UUID(), bookmarkData: Data("first".utf8))
         let second = WorkspaceReference(id: UUID(), bookmarkData: Data("second".utf8))
         let restoration = WorkspaceLaunchRestoration(
             defaults: defaults,
-            storageKey: "last",
-            recentStorageKey: "recent"
+            storageKey: storageKey,
+            recentStorageKey: recentStorageKey
         )
 
         restoration.remember(first)
@@ -605,13 +608,13 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
         XCTAssertEqual(restoration.recentWorkspaces.map(\.id), [first.id, second.id])
         let restored = WorkspaceLaunchRestoration(
             defaults: defaults,
-            storageKey: "last",
-            recentStorageKey: "recent"
+            storageKey: storageKey,
+            recentStorageKey: recentStorageKey
         )
         XCTAssertEqual(restored.recentWorkspaces.map(\.id), [first.id, second.id])
         restored.clearRecentWorkspaces()
         XCTAssertTrue(restored.recentWorkspaces.isEmpty)
-        XCTAssertNil(defaults.data(forKey: "recent"))
+        XCTAssertNil(defaults.data(forKey: recentStorageKey))
     }
 }
 
@@ -673,15 +676,6 @@ final class MarkdownFileCodecTests: XCTestCase {
 }
 
 final class OnboardingTests: XCTestCase {
-    func testBundledExampleExercisesMarkdownAndBothDiagramRenderers() throws {
-        let source = try ExampleDocument.source()
-
-        XCTAssertTrue(source.contains("# Welcome to DiagramDown"))
-        XCTAssertTrue(source.contains("```mermaid"))
-        XCTAssertTrue(source.contains("```d2"))
-        XCTAssertTrue(source.contains("## Export"))
-    }
-
     func testHelpLinksUseSecureProjectURLs() {
         let links = [
             DiagramDownLinks.project,
@@ -1089,33 +1083,6 @@ final class LocalDiagramCLIRenderTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
-    }
-}
-
-final class PDFExportServiceTests: XCTestCase {
-    func testPaginationProducesMultipleNonEmptyA4Pages() throws {
-        var sourceBounds = CGRect(x: 0, y: 0, width: 400, height: 1_600)
-        let sourceData = NSMutableData()
-        let consumer = try XCTUnwrap(CGDataConsumer(data: sourceData as CFMutableData))
-        let context = try XCTUnwrap(CGContext(consumer: consumer, mediaBox: &sourceBounds, nil))
-        context.beginPDFPage(nil)
-        context.setFillColor(CGColor(red: 0.2, green: 0.3, blue: 0.9, alpha: 1))
-        context.fill(CGRect(x: 20, y: 20, width: 360, height: 1_560))
-        context.endPDFPage()
-        context.closePDF()
-
-        let result = try PDFExportService.paginate(sourceData as Data)
-        try PDFExportService.validate(result)
-        let provider = try XCTUnwrap(CGDataProvider(data: result as CFData))
-        let document = try XCTUnwrap(CGPDFDocument(provider))
-
-        XCTAssertGreaterThan(document.numberOfPages, 1)
-        XCTAssertGreaterThan(result.count, 1_000)
-        XCTAssertEqual(document.page(at: 1)?.getBoxRect(.mediaBox).width ?? 0, 595.28, accuracy: 0.1)
-    }
-
-    func testInvalidPDFIsRejected() {
-        XCTAssertThrowsError(try PDFExportService.validate(Data("not a pdf".utf8)))
     }
 }
 

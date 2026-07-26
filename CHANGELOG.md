@@ -32,6 +32,12 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Removed the Base Mermaid theme option because current Mermaid CLI versions do
   not accept it through the command-line theme argument
 
+### Removed
+
+- Remaining unused single-file migration artifacts: the bundled example
+  document, the legacy WebKit PDF pagination helper, and the native preview
+  forwarding facade
+
 ## [0.23.0] - 2026-07-26
 
 ### Added

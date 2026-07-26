@@ -191,7 +191,7 @@ struct EditorPreviewSurface: View {
     }
 
     private var previewPane: some View {
-        MarkdownPreviewView(
+        NativeMarkdownPreviewView(
             markdown: text,
             configuration: previewConfiguration,
             zoom: PreviewZoom.clamped(previewZoom),
