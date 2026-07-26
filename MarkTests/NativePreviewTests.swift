@@ -229,6 +229,50 @@ final class PreviewDocumentReconcilerTests: XCTestCase {
 }
 
 final class NativePreviewSafetyTests: XCTestCase {
+    func testInlineBuilderUsesTheRequestedContextFont() {
+        let metrics = PreviewMetrics(zoom: 1)
+        let theme = PreviewTheme(
+            id: "test",
+            background: .white,
+            primaryText: .black,
+            secondaryText: .gray,
+            accent: .blue,
+            subtleBackground: .white,
+            border: .gray,
+            blockQuoteBorder: .gray,
+            codeTheme: CodeTheme.resolved(
+                markdownTheme: .diagramDown,
+                appearance: .light
+            )
+        )
+        let content = PreviewInlineContent(nodes: [.text("Heading")])
+        let body = InlineAttributedStringBuilder().build(
+            content,
+            theme: theme,
+            metrics: metrics
+        )
+        let heading = InlineAttributedStringBuilder().build(
+            content,
+            theme: theme,
+            metrics: metrics,
+            baseFont: metrics.headingFont(level: 3)
+        )
+
+        XCTAssertEqual(body.runs.first?.font, .system(size: metrics.bodyFontSize))
+        XCTAssertEqual(heading.runs.first?.font, metrics.headingFont(level: 3))
+        XCTAssertNotEqual(body.runs.first?.font, heading.runs.first?.font)
+    }
+
+    func testHeadingFontSizesRemainVisuallyHierarchical() {
+        let metrics = PreviewMetrics(zoom: 1)
+        let sizes = (1...6).map(metrics.headingFontSize(level:))
+
+        XCTAssertEqual(sizes, [30, 25, 21, 18, 16, 15])
+        for pair in zip(sizes, sizes.dropFirst()) {
+            XCTAssertGreaterThan(pair.0, pair.1)
+        }
+    }
+
     func testPreviewLinksAllowOnlyExplicitExternalSchemes() {
         XCTAssertNotNil(SafePreviewURL.link("https://example.com/path"))
         XCTAssertNotNil(SafePreviewURL.link("mailto:hello@example.com"))

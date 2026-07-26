@@ -157,13 +157,7 @@ struct PreviewBlockView: View {
         inline: PreviewInlineContent
     ) -> some View {
         VStack(alignment: .leading, spacing: 6 * metrics.zoom) {
-            inlineText(inline)
-                .font(
-                    .system(
-                        size: metrics.headingFontSize(level: level),
-                        weight: level <= 2 ? .bold : .semibold
-                    )
-                )
+            inlineText(inline, baseFont: metrics.headingFont(level: level))
                 .frame(maxWidth: .infinity, alignment: .leading)
             if level <= 2 {
                 Divider().overlay(theme.border)
@@ -172,12 +166,16 @@ struct PreviewBlockView: View {
         .padding(.top, level == 1 ? 8 * metrics.zoom : 3 * metrics.zoom)
     }
 
-    private func inlineText(_ content: PreviewInlineContent) -> Text {
+    private func inlineText(
+        _ content: PreviewInlineContent,
+        baseFont: Font? = nil
+    ) -> Text {
         Text(
             InlineAttributedStringBuilder().build(
                 content,
                 theme: theme,
-                metrics: metrics
+                metrics: metrics,
+                baseFont: baseFont
             )
         )
     }
@@ -293,13 +291,11 @@ private struct PreviewTableView: View {
                                 InlineAttributedStringBuilder().build(
                                     cell,
                                     theme: theme,
-                                    metrics: metrics
-                                )
-                            )
-                            .font(
-                                .system(
-                                    size: metrics.bodyFontSize,
-                                    weight: rowIndex == 0 ? .semibold : .regular
+                                    metrics: metrics,
+                                    baseFont: .system(
+                                        size: metrics.bodyFontSize,
+                                        weight: rowIndex == 0 ? .semibold : .regular
+                                    )
                                 )
                             )
                             .padding(metrics.tableCellInset)

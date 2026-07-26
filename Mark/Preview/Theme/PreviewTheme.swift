@@ -127,6 +127,13 @@ struct PreviewMetrics {
         let sizes: [CGFloat] = [30, 25, 21, 18, 16, 15]
         return sizes[min(max(level - 1, 0), sizes.count - 1)] * zoom
     }
+
+    func headingFont(level: Int) -> Font {
+        .system(
+            size: headingFontSize(level: level),
+            weight: level <= 2 ? .bold : .semibold
+        )
+    }
 }
 
 private extension Color {
