@@ -18,9 +18,9 @@ The maintainer will acknowledge the report in the private advisory, investigate 
 
 Reports are especially useful when they involve:
 
-- untrusted Markdown or SVG escaping the preview content security policy
-- unexpected network access from the offline preview
-- command or argument injection into the bundled D2 process
-- App Sandbox or helper entitlement bypasses
+- untrusted Markdown or generated SVG escaping the native preview safety checks
+- command or argument injection into the external Mermaid or D2 CLI invocation
+- failure to terminate a diagram CLI or one of its child processes after cancellation
+- unsafe executable discovery or custom-tool path handling
 - unsafe file access, export paths, or cache handling
 - signing, notarization, or update-channel integrity

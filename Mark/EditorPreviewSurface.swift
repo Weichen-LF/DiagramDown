@@ -51,6 +51,7 @@ final class EditorPreviewSessionState: ObservableObject {
 struct EditorPreviewSurface: View {
     @Binding var text: String
     let fileURL: URL?
+    let workspaceRootURL: URL
     @Binding var storedViewMode: String
     @ObservedObject var session: EditorPreviewSessionState
 
@@ -186,6 +187,8 @@ struct EditorPreviewSurface: View {
             markdown: text,
             configuration: previewConfiguration,
             zoom: PreviewZoom.clamped(previewZoom),
+            fileURL: fileURL,
+            workspaceRootURL: workspaceRootURL,
             documentBaseName: documentBaseName,
             previewController: session.previewController,
             editorScrollPosition: session.editorScrollPosition,

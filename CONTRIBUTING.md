@@ -5,7 +5,7 @@ Thanks for improving DiagramDown. Keep changes focused, reviewable, and compatib
 ## Development requirements
 
 - macOS 15 or later
-- Apple Silicon when exercising the bundled D2 renderer
+- Apple Silicon for the current release target
 - Xcode with the macOS SDK and SwiftUI support
 - Node.js 18 or later
 
@@ -47,16 +47,19 @@ Manually verify visible behavior when changing editor layout, scrolling, themes,
 
 ## Change guidelines
 
-- Preserve native `NSTextView` editing behavior and the persistent `WKWebView` preview architecture.
-- Keep Markdown, Mermaid, and D2 rendering offline. Do not add CDN or runtime network dependencies.
-- Run D2 only through the fixed bundled executable path; never construct shell commands from document content.
+- Preserve native `NSTextView` editing and SwiftUI preview behavior.
+- Keep Markdown, Mermaid, and D2 rendering local. Do not add CDN or runtime network dependencies.
+- Run local diagram tools with absolute executable paths and argument arrays; never construct shell commands from document content.
 - Preserve source-line anchors and stable diagram identities when changing preview rendering.
 - Update tests and `CHANGELOG.md` for user-visible behavior.
 - Do not commit build products, credentials, private Markdown documents, absolute local paths, or Xcode user state.
 
-## Bundled dependencies
+## Diagram tool compatibility
 
-Changes to Mermaid, markdown-it, or D2 must update the bundled artifact, version documentation, provenance or checksum, and corresponding license notice together. The first public release intentionally ships the D2 helper as arm64; universal distribution is later work.
+Mermaid and D2 are optional user-installed tools. Changes to CLI arguments,
+discovery, or version handling must include fake-executable tests and manual
+coverage against current Homebrew versions. Do not add either executable or its
+runtime assets to the application bundle.
 
 ## Pull requests
 

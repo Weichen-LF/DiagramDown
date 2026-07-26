@@ -14,7 +14,9 @@ Use this checklist for every public community release. The current channel is Ap
 
 - [ ] Run `./Scripts/test.sh`.
 - [ ] Run `./Scripts/package-release.sh --allow-dirty --expected-version <version>` to validate the candidate before commit.
-- [ ] Confirm `validate-release.sh` reports the expected version, build, arm64 architecture, signatures, entitlements, Hardened Runtime, and licenses.
+- [ ] Confirm `validate-release.sh` reports the expected version, build, arm64 architecture, signature, Hardened Runtime, absence of WebKit/bundled diagram tools, and licenses.
+- [ ] Confirm Mermaid and D2 fences fall back to code blocks when both CLIs are absent.
+- [ ] Confirm the current npm `@mermaid-js/mermaid-cli` and Homebrew `d2` versions render the example document.
 - [ ] Inspect the final diff and make sure no build products, credentials, local paths, or test documents were added.
 
 GUI automation and Computer Use are not part of this release gate. The combined `docs/examples/all-features.md` document remains available for optional human checks.
@@ -28,11 +30,13 @@ GUI automation and Computer Use are not part of this release gate. The combined 
 
 ## 4. Publish
 
-Create and push an annotated tag from the merged `main` commit:
+Create and push an annotated tag from the merged `main` commit, replacing
+`<version>` with the prepared release version:
 
 ```sh
-git tag -a v0.22.0 -m "Release DiagramDown 0.22.0"
-git push origin v0.22.0
+version="<version>"
+git tag -a "v${version}" -m "Release DiagramDown ${version}"
+git push origin "v${version}"
 ```
 
 The `Release` GitHub Actions workflow will rerun tests, build the package, validate it, and create the GitHub Release.
@@ -51,7 +55,7 @@ shasum -a 256 -c DiagramDown-<version>-arm64.dmg.sha256
 ```
 
 - [ ] Confirm the checksum reports `OK`.
-- [ ] Confirm `gh release view v0.22.0` reports the intended tag, title, notes, and assets.
+- [ ] Confirm `gh release view "v${version}"` reports the intended tag, title, notes, and assets.
 - [ ] Confirm the README's latest-release link resolves to the new release.
 
 ## 6. After publication

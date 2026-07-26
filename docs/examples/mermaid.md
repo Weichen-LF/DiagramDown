@@ -1,6 +1,6 @@
 # Mermaid preview smoke test
 
-This document exercises DiagramDown's bundled, offline Mermaid renderer.
+This document exercises DiagramDown's local Mermaid CLI integration.
 
 ## Flowchart
 

@@ -16,6 +16,10 @@ struct DiagramDownApp: App {
         WindowGroup {
             WorkspaceSceneView()
                 .preferredColorScheme(preferredColorScheme)
+                .task {
+                    PreviewCacheMemoryPressureMonitor.shared.start()
+                    _ = await DiagramToolRegistry.shared.refreshAll()
+                }
         }
         .commands {
             FormattingCommands()
