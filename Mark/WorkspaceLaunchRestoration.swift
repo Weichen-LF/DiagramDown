@@ -6,6 +6,14 @@
 import Combine
 import Foundation
 
+protocol WorkspaceLaunchStorage: AnyObject {
+    func data(forKey defaultName: String) -> Data?
+    func set(_ value: Any?, forKey defaultName: String)
+    func removeObject(forKey defaultName: String)
+}
+
+extension UserDefaults: WorkspaceLaunchStorage {}
+
 nonisolated struct WorkspaceLaunchState {
     private(set) var didAttemptRestoration = false
 
@@ -25,14 +33,14 @@ nonisolated struct WorkspaceLaunchState {
 final class WorkspaceLaunchRestoration: ObservableObject {
     static let shared = WorkspaceLaunchRestoration()
 
-    private let defaults: UserDefaults
+    private let defaults: any WorkspaceLaunchStorage
     private let storageKey: String
     private let recentStorageKey: String
     private var state = WorkspaceLaunchState()
     @Published private(set) var recentWorkspaces: [RecentWorkspace] = []
 
     init(
-        defaults: UserDefaults = .standard,
+        defaults: any WorkspaceLaunchStorage = UserDefaults.standard,
         storageKey: String = "Workspace.lastReference",
         recentStorageKey: String? = nil
     ) {

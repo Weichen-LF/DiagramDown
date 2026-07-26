@@ -563,6 +563,22 @@ final class WorkspaceRecoveryStoreTests: XCTestCase {
 }
 
 final class WorkspaceLaunchRestorationTests: XCTestCase {
+    private final class MemoryStorage: WorkspaceLaunchStorage {
+        private var values: [String: Any] = [:]
+
+        func data(forKey defaultName: String) -> Data? {
+            values[defaultName] as? Data
+        }
+
+        func set(_ value: Any?, forKey defaultName: String) {
+            values[defaultName] = value
+        }
+
+        func removeObject(forKey defaultName: String) {
+            values.removeValue(forKey: defaultName)
+        }
+    }
+
     func testLastWorkspaceReferencePersistsAndIsClaimedOnlyOncePerLaunch() throws {
         let reference = WorkspaceReference(
             id: UUID(),
@@ -587,12 +603,9 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
 
     @MainActor
     func testRecentWorkspacesAreDeduplicatedPersistedAndClearable() {
-        let testID = UUID().uuidString
-        let suiteName = "WorkspaceLaunchRestorationTests.\(testID)"
-        let storageKey = "WorkspaceLaunchRestorationTests.\(testID).last"
-        let recentStorageKey = "WorkspaceLaunchRestorationTests.\(testID).recent"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let storageKey = "last"
+        let recentStorageKey = "recent"
+        let defaults = MemoryStorage()
         let first = WorkspaceReference(id: UUID(), bookmarkData: Data("first".utf8))
         let second = WorkspaceReference(id: UUID(), bookmarkData: Data("second".utf8))
         let restoration = WorkspaceLaunchRestoration(
