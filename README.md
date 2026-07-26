@@ -43,6 +43,7 @@ executables directly; your documents stay on your Mac.
 - **Workspace first** — open a folder, browse its tree, and keep multiple files in tabs.
 - **Native editing** — macOS text input, line numbers, Undo, Find, smooth scrolling, and familiar shortcuts.
 - **Live preview** — Markdown, Mermaid, D2, code highlighting, themes, and light/dark appearance.
+- **Local images** — preview common image formats through relative, absolute, or `file://` paths.
 - **Diagram friendly** — inspect diagrams in a focused viewer, pinch to zoom, and export SVG.
 - **Stay in sync** — scroll either pane or click the preview to return to the matching source.
 - **Pick up where you left off** — restore the last folder, tabs, layout, scroll position, and unsaved edits.

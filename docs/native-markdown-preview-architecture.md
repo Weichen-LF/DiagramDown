@@ -17,8 +17,9 @@ flowchart LR
     Diagram --> Registry[DiagramToolRegistry]
     Registry --> MM[Local mmdc]
     Registry --> D2[Local d2]
-    MM --> Sanitize[SVGSanitizer]
-    D2 --> Sanitize
+    MM --> PNG[PNG preview]
+    MM --> RawSVG[Raw SVG export]
+    D2 --> Sanitize[SVGSanitizer]
     Sanitize --> SVG[NSSVGImageRep]
     Model --> PDF[Native AppKit print pipeline]
 ```
@@ -53,9 +54,11 @@ document content is never interpolated into a shell command. Each render uses a
 private temporary directory, bounded input/output and diagnostics, a timeout,
 cancellation, and process-group cleanup.
 
-Mermaid receives the active theme and produces a transparent SVG. D2 receives
-exactly one theme ID for the effective light or dark appearance, avoiding
-dual-theme CSS in its output.
+Mermaid receives the active theme and produces PNG for preview and PDF output,
+so Mermaid's default HTML labels are rasterized by its Chromium renderer.
+Export invokes `mmdc` again and writes its raw SVG without application-side
+sanitation. D2 receives exactly one theme ID for the effective light or dark
+appearance, avoiding dual-theme CSS in its output.
 
 ## Fallback and error policy
 
@@ -66,21 +69,21 @@ dual-theme CSS in its output.
 - PDF export mirrors this behavior: unavailable tools become source code and
   render failures become diagnostic placeholders rather than failing the whole
   export.
-- SVG view/export controls appear only after a successful render.
+- Diagram view/export controls appear only after a successful render.
 
 ## Concurrency, cache, and SVG boundary
 
-Parsing, Tree-sitter highlighting, CLI execution, and SVG sanitation run behind
+Parsing, Tree-sitter highlighting, CLI execution, and D2 SVG sanitation run behind
 actors. SwiftUI only applies a result whose block ID and document revision match
 the active request.
 
-Sanitized SVGs use bounded memory and disk caches. Tree-sitter attributed text
-and SVG memory caches expose statistics for tests and are purged on macOS
-memory-pressure warnings. `SVGSanitizer` rejects DTDs,
+Mermaid PNG previews and sanitized D2 SVGs use bounded memory and disk caches.
+Tree-sitter attributed text and diagram memory caches expose statistics for
+tests and are purged on macOS memory-pressure warnings. `SVGSanitizer` rejects DTDs,
 entities, malformed XML, invalid dimensions, excessive size/depth/elements,
 scripts, foreign objects, event attributes, JavaScript URLs, and external image
-references. The same sanitized document is displayed with macOS
-`NSImage`/`NSSVGImageRep`, exported as SVG, and used by native PDF printing.
+references in D2 output. Mermaid PNG and D2 SVG documents are displayed through
+macOS `NSImage`/`NSSVGImageRep` and used by native PDF printing.
 
 ## Packaging
 

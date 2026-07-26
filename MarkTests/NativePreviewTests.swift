@@ -3,6 +3,7 @@
 //  DiagramDownTests
 //
 
+import AppKit
 import SwiftUI
 import XCTest
 @testable import DiagramDown
@@ -275,12 +276,14 @@ final class NativePreviewSafetyTests: XCTestCase {
         }
     }
 
-    func testImageResolverAllowsWorkspaceRelativePathsAndBlocksEscape() throws {
-        let workspace = FileManager.default.temporaryDirectory
+    func testImageResolverSupportsRelativeAndExternalLocalFiles() throws {
+        let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let workspace = root.appendingPathComponent("workspace", isDirectory: true)
         let documents = workspace.appendingPathComponent("docs", isDirectory: true)
         let assets = workspace.appendingPathComponent("assets", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: workspace) }
+        let external = root.appendingPathComponent("external images", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(
             at: documents,
             withIntermediateDirectories: true
@@ -289,11 +292,22 @@ final class NativePreviewSafetyTests: XCTestCase {
             at: assets,
             withIntermediateDirectories: true
         )
+        try FileManager.default.createDirectory(
+            at: external,
+            withIntermediateDirectories: true
+        )
         let expected = Data([0x89, 0x50, 0x4E, 0x47])
         try expected.write(to: assets.appendingPathComponent("image.png"))
+        let externalJPEG = external.appendingPathComponent("photo.jpeg")
+        try expected.write(to: externalJPEG)
+        let externalSVG = external.appendingPathComponent("diagram.svg")
+        let svg = Data(
+            #"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>"#.utf8
+        )
+        try svg.write(to: externalSVG)
         let documentURL = documents.appendingPathComponent("README.md")
 
-        let loaded = try PreviewImageResolver.data(
+        let relative = try PreviewImageResolver.data(
             for: PreviewImage(
                 source: "../assets/image.png",
                 title: nil,
@@ -302,21 +316,39 @@ final class NativePreviewSafetyTests: XCTestCase {
             documentURL: documentURL,
             workspaceRootURL: workspace
         )
+        let escapedWorkspace = try PreviewImageResolver.data(
+            for: PreviewImage(
+                source: "../../external%20images/photo.jpeg",
+                title: nil,
+                alt: "external"
+            ),
+            documentURL: documentURL,
+            workspaceRootURL: workspace
+        )
+        let absolute = try PreviewImageResolver.data(
+            for: PreviewImage(
+                source: externalSVG.path,
+                title: nil,
+                alt: "svg"
+            ),
+            documentURL: documentURL,
+            workspaceRootURL: workspace
+        )
+        let fileURL = try PreviewImageResolver.data(
+            for: PreviewImage(
+                source: externalJPEG.absoluteString,
+                title: nil,
+                alt: "file URL"
+            ),
+            documentURL: documentURL,
+            workspaceRootURL: workspace
+        )
 
-        XCTAssertEqual(loaded, expected)
-        XCTAssertThrowsError(
-            try PreviewImageResolver.data(
-                for: PreviewImage(
-                    source: "../../outside.png",
-                    title: nil,
-                    alt: ""
-                ),
-                documentURL: documentURL,
-                workspaceRootURL: workspace
-            )
-        ) { error in
-            XCTAssertEqual(error as? PreviewImageLoadingError, .outsideWorkspace)
-        }
+        XCTAssertEqual(relative, expected)
+        XCTAssertEqual(escapedWorkspace, expected)
+        XCTAssertEqual(absolute, svg)
+        XCTAssertEqual(fileURL, expected)
+        XCTAssertNotNil(NSImage(data: absolute))
         XCTAssertThrowsError(
             try PreviewImageResolver.data(
                 for: PreviewImage(
@@ -329,6 +361,21 @@ final class NativePreviewSafetyTests: XCTestCase {
             )
         ) { error in
             XCTAssertEqual(error as? PreviewImageLoadingError, .remoteImageDisabled)
+        }
+        let unsupported = external.appendingPathComponent("notes.txt")
+        try expected.write(to: unsupported)
+        XCTAssertThrowsError(
+            try PreviewImageResolver.data(
+                for: PreviewImage(
+                    source: unsupported.path,
+                    title: nil,
+                    alt: ""
+                ),
+                documentURL: documentURL,
+                workspaceRootURL: workspace
+            )
+        ) { error in
+            XCTAssertEqual(error as? PreviewImageLoadingError, .unsupportedFormat)
         }
     }
 }
@@ -436,7 +483,7 @@ final class NativePreviewHighlightingTests: XCTestCase {
 }
 
 final class NativePreviewDiagramTests: XCTestCase {
-    func testLocalMermaidCLIProducesSanitizableSVG() async throws {
+    func testLocalMermaidCLIProducesPNGPreviewAndRawSVGExport() async throws {
         let fixture = try makeFakeMermaidCLI()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let tool = InstalledDiagramTool(
@@ -444,18 +491,22 @@ final class NativePreviewDiagramTests: XCTestCase {
             executableURL: fixture.executable,
             version: "11.16.0"
         )
-        let rawSVG = try await MermaidRenderService.shared.render(
+        let png = try await MermaidRenderService.shared.renderPNG(
             source: "flowchart LR\n  A --> B",
             theme: .default,
             appearance: "light",
             tool: tool
         )
-        let document = try await SVGSanitizer.shared.sanitize(rawSVG)
+        let preview = try RasterDiagramDocument(data: png)
+        let rawSVG = try await MermaidRenderService.shared.renderSVG(
+            source: "flowchart LR\n  A --> B",
+            theme: .default,
+            tool: tool
+        )
 
-        XCTAssertTrue(document.sanitizedXML.localizedCaseInsensitiveContains("<svg"))
-        XCTAssertFalse(document.sanitizedXML.localizedCaseInsensitiveContains("<script"))
-        XCTAssertGreaterThan(document.intrinsicSize.width, 0)
-        XCTAssertGreaterThan(document.intrinsicSize.height, 0)
+        XCTAssertEqual(preview.intrinsicSize, CGSize(width: 1, height: 1))
+        XCTAssertTrue(rawSVG.localizedCaseInsensitiveContains("<foreignObject"))
+        XCTAssertTrue(rawSVG.contains("default mmdc output"))
     }
 
     func testDiagramCacheKeyTracksContentAndThemeButNotViewRevision() async throws {
@@ -464,7 +515,11 @@ final class NativePreviewDiagramTests: XCTestCase {
         let registry = DiagramToolRegistry(
             automaticDirectories: [fixture.directory]
         )
-        let coordinator = DiagramRenderCoordinator(toolRegistry: registry)
+        let coordinator = DiagramRenderCoordinator(
+            toolRegistry: registry,
+            diskCacheDirectoryURL: fixture.directory
+                .appendingPathComponent("diagram-cache", isDirectory: true)
+        )
         let configuration = DiagramConfiguration(
             mermaidTheme: .default,
             appearance: "light",
@@ -507,13 +562,16 @@ final class NativePreviewDiagramTests: XCTestCase {
         XCTAssertNotEqual(first.cacheKey, dark.cacheKey)
     }
 
-    func testDiagramMemoryCacheReportsCostAndCanBePurged() async throws {
+    func testDiagramCachesReportCostAndCanAllBePurged() async throws {
         let fixture = try makeFakeMermaidCLI()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let diskCacheDirectory = fixture.directory
+            .appendingPathComponent("diagram-cache", isDirectory: true)
         let coordinator = DiagramRenderCoordinator(
             toolRegistry: DiagramToolRegistry(
                 automaticDirectories: [fixture.directory]
-            )
+            ),
+            diskCacheDirectoryURL: diskCacheDirectory
         )
 
         _ = try await coordinator.render(
@@ -532,16 +590,25 @@ final class NativePreviewDiagramTests: XCTestCase {
         let populated = await coordinator.cacheStatistics()
         XCTAssertEqual(populated.entryCount, 1)
         XCTAssertGreaterThan(populated.estimatedBytes, 0)
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: diskCacheDirectory.path)
+        )
 
-        await coordinator.purgeCaches()
+        try await coordinator.purgeAllCaches()
         let purged = await coordinator.cacheStatistics()
         XCTAssertEqual(
             purged,
             PreviewCacheStatistics(entryCount: 0, estimatedBytes: 0)
         )
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: diskCacheDirectory.path)
+        )
     }
 
-    private func makeFakeMermaidCLI() throws -> (directory: URL, executable: URL) {
+    private func makeFakeMermaidCLI() throws -> (
+        directory: URL,
+        executable: URL
+    ) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(
@@ -549,6 +616,14 @@ final class NativePreviewDiagramTests: XCTestCase {
             withIntermediateDirectories: true
         )
         let executable = directory.appendingPathComponent("mmdc")
+        let pngFixture = directory.appendingPathComponent("preview.png")
+        let png = try XCTUnwrap(
+            Data(
+                base64Encoded:
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+            )
+        )
+        try png.write(to: pngFixture)
         let script = """
         #!/bin/sh
         if [ "$1" = "--version" ]; then
@@ -556,16 +631,18 @@ final class NativePreviewDiagramTests: XCTestCase {
           exit 0
         fi
         output=""
-        theme="default"
         while [ "$#" -gt 0 ]; do
           case "$1" in
             -o) output="$2"; shift 2 ;;
-            -t) theme="$2"; shift 2 ;;
             *) shift ;;
           esac
         done
         [ -n "$output" ] || exit 8
-        printf '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80"><text x="8" y="24">%s</text></svg>' "$theme" > "$output"
+        case "$output" in
+          *.png) cp "\(pngFixture.path)" "$output" ;;
+          *.svg) printf '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80"><foreignObject width="160" height="80"><div xmlns="http://www.w3.org/1999/xhtml">default mmdc output</div></foreignObject></svg>' > "$output" ;;
+          *) exit 9 ;;
+        esac
         """
         try script.write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(

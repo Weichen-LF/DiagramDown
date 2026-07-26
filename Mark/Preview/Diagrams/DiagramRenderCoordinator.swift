@@ -28,7 +28,7 @@ nonisolated struct DiagramRenderRequest: Hashable, Sendable {
 nonisolated struct DiagramRenderResult: Sendable {
     let blockID: PreviewBlockID
     let revision: UInt64
-    let document: SVGDocument
+    let document: DiagramDocument
     let cacheKey: String
 }
 
@@ -38,23 +38,26 @@ actor DiagramRenderCoordinator {
     private let toolRegistry: DiagramToolRegistry
     private let d2RenderService: D2RenderService
     private let mermaidRenderService: MermaidRenderService
-    private var cache: [String: SVGDocument] = [:]
+    private var cache: [String: DiagramDocument] = [:]
     private var cacheOrder: [String] = []
     private var cacheCost = 0
     private let maximumEntries = 128
     private let maximumMemoryCacheBytes = 64 * 1_024 * 1_024
-    private let maximumSVGBytes = 8 * 1_024 * 1_024
+    private let maximumCachedOutputBytes = 8 * 1_024 * 1_024
     private let maximumDiskCacheBytes = 256 * 1_024 * 1_024
     private let diskCacheTrimTargetBytes = 224 * 1_024 * 1_024
+    private let diskCacheDirectoryURL: URL?
 
     init(
         toolRegistry: DiagramToolRegistry = .shared,
         d2RenderService: D2RenderService = .shared,
-        mermaidRenderService: MermaidRenderService = .shared
+        mermaidRenderService: MermaidRenderService = .shared,
+        diskCacheDirectoryURL: URL? = DiagramRenderCoordinator.defaultDiskCacheDirectoryURL()
     ) {
         self.toolRegistry = toolRegistry
         self.d2RenderService = d2RenderService
         self.mermaidRenderService = mermaidRenderService
+        self.diskCacheDirectoryURL = diskCacheDirectoryURL
     }
 
     func cacheStatistics() -> PreviewCacheStatistics {
@@ -70,6 +73,15 @@ actor DiagramRenderCoordinator {
         cacheCost = 0
     }
 
+    func purgeAllCaches() throws {
+        purgeCaches()
+        guard let diskCacheDirectoryURL,
+              FileManager.default.fileExists(atPath: diskCacheDirectoryURL.path) else {
+            return
+        }
+        try FileManager.default.removeItem(at: diskCacheDirectoryURL)
+    }
+
     func render(_ request: DiagramRenderRequest) async throws -> DiagramRenderResult {
         try Task.checkCancellation()
         let toolKind: DiagramToolKind = switch request.kind {
@@ -81,42 +93,56 @@ actor DiagramRenderCoordinator {
         if let cached = cache[key] {
             return result(for: request, document: cached, cacheKey: key)
         }
-        if let diskSVG = diskCachedSVG(forKey: key),
-           let cached = try? await SVGSanitizer.shared.sanitize(diskSVG) {
+        if let cached = try await diskCachedDocument(
+            forKey: key,
+            kind: request.kind
+        ) {
             storeInMemory(cached, forKey: key)
             return result(for: request, document: cached, cacheKey: key)
         }
 
-        let rawSVG: String
+        let document: DiagramDocument
         switch request.kind {
         case .d2:
-            rawSVG = try await d2RenderService.render(
+            let rawSVG = try await d2RenderService.render(
                 source: request.source,
                 configuration: request.configuration.d2,
                 appearance: request.configuration.appearance,
                 tool: tool
             ).svg
+            document = .svg(try await SVGSanitizer.shared.sanitize(rawSVG))
         case .mermaid:
-            rawSVG = try await mermaidRenderService.render(
+            let png = try await mermaidRenderService.renderPNG(
                 source: request.source,
                 theme: request.configuration.mermaidTheme,
                 appearance: request.configuration.appearance,
                 tool: tool
             )
+            document = .raster(try RasterDiagramDocument(data: png))
         }
         try Task.checkCancellation()
-        let sanitized = try await SVGSanitizer.shared.sanitize(rawSVG)
-        try Task.checkCancellation()
 
-        storeInMemory(sanitized, forKey: key)
-        storeOnDisk(sanitized, forKey: key)
+        storeInMemory(document, forKey: key)
+        storeOnDisk(document, forKey: key)
 
-        return result(for: request, document: sanitized, cacheKey: key)
+        return result(for: request, document: document, cacheKey: key)
+    }
+
+    func renderMermaidSVG(_ request: DiagramRenderRequest) async throws -> String {
+        guard request.kind == .mermaid else {
+            throw MermaidRenderError.invalidSVG
+        }
+        let tool = try await toolRegistry.installedTool(for: .mermaid)
+        return try await mermaidRenderService.renderSVG(
+            source: request.source,
+            theme: request.configuration.mermaidTheme,
+            tool: tool
+        )
     }
 
     private func result(
         for request: DiagramRenderRequest,
-        document: SVGDocument,
+        document: DiagramDocument,
         cacheKey: String
     ) -> DiagramRenderResult {
         DiagramRenderResult(
@@ -127,25 +153,28 @@ actor DiagramRenderCoordinator {
         )
     }
 
-    private func storeInMemory(_ document: SVGDocument, forKey key: String) {
+    private func storeInMemory(_ document: DiagramDocument, forKey key: String) {
         if let previous = cache[key] {
-            cacheCost -= previous.sanitizedXML.utf8.count
+            cacheCost -= previous.byteCount
         }
         cache[key] = document
-        cacheCost += document.sanitizedXML.utf8.count
+        cacheCost += document.byteCount
         cacheOrder.removeAll(where: { $0 == key })
         cacheOrder.append(key)
         while cacheOrder.count > maximumEntries
             || cacheCost > maximumMemoryCacheBytes {
             let removedKey = cacheOrder.removeFirst()
             if let removed = cache.removeValue(forKey: removedKey) {
-                cacheCost -= removed.sanitizedXML.utf8.count
+                cacheCost -= removed.byteCount
             }
         }
     }
 
-    private func diskCachedSVG(forKey key: String) -> String? {
-        guard let url = diskCacheFileURL(forKey: key) else {
+    private func diskCachedDocument(
+        forKey key: String,
+        kind: DiagramKind
+    ) async throws -> DiagramDocument? {
+        guard let url = diskCacheFileURL(forKey: key, kind: kind) else {
             return nil
         }
         do {
@@ -157,14 +186,13 @@ actor DiagramRenderCoordinator {
             guard values.isRegularFile == true,
                   values.isSymbolicLink != true,
                   let fileSize = values.fileSize,
-                  fileSize <= maximumSVGBytes else {
+                  fileSize <= maximumCachedOutputBytes else {
                 try? FileManager.default.removeItem(at: url)
                 return nil
             }
 
             let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-            guard data.count <= maximumSVGBytes,
-                  let svg = String(data: data, encoding: .utf8) else {
+            guard data.count <= maximumCachedOutputBytes else {
                 try? FileManager.default.removeItem(at: url)
                 return nil
             }
@@ -172,16 +200,42 @@ actor DiagramRenderCoordinator {
                 [.modificationDate: Date()],
                 ofItemAtPath: url.path
             )
-            return svg
+            switch kind {
+            case .mermaid:
+                guard let raster = try? RasterDiagramDocument(data: data) else {
+                    try? FileManager.default.removeItem(at: url)
+                    return nil
+                }
+                return .raster(raster)
+            case .d2:
+                guard let svg = String(data: data, encoding: .utf8),
+                      let sanitized = try? await SVGSanitizer.shared.sanitize(svg) else {
+                    try? FileManager.default.removeItem(at: url)
+                    return nil
+                }
+                return .svg(sanitized)
+            }
         } catch {
             return nil
         }
     }
 
-    private func storeOnDisk(_ document: SVGDocument, forKey key: String) {
-        let data = Data(document.sanitizedXML.utf8)
-        guard data.count <= maximumSVGBytes,
-              let url = diskCacheFileURL(forKey: key) else {
+    private func storeOnDisk(_ document: DiagramDocument, forKey key: String) {
+        let data: Data = switch document {
+        case .svg(let svg):
+            Data(svg.sanitizedXML.utf8)
+        case .raster(let raster):
+            raster.data
+        }
+        let kind: DiagramKind = switch document {
+        case .svg: .d2
+        case .raster: .mermaid
+        }
+        guard data.count <= maximumCachedOutputBytes,
+              let url = diskCacheFileURL(
+                forKey: key,
+                kind: kind
+              ) else {
             return
         }
         do {
@@ -242,7 +296,10 @@ actor DiagramRenderCoordinator {
         }
     }
 
-    private func diskCacheFileURL(forKey key: String) -> URL? {
+    private func diskCacheFileURL(
+        forKey key: String,
+        kind: DiagramKind
+    ) -> URL? {
         guard key.count >= 4, let root = diskCacheDirectoryURL else {
             return nil
         }
@@ -252,10 +309,13 @@ actor DiagramRenderCoordinator {
                 String(key.dropFirst(2).prefix(2)),
                 isDirectory: true
             )
-            .appendingPathComponent("\(key).svg", isDirectory: false)
+            .appendingPathComponent(
+                "\(key).\(kind == .mermaid ? "png" : "svg")",
+                isDirectory: false
+            )
     }
 
-    private var diskCacheDirectoryURL: URL? {
+    nonisolated private static func defaultDiskCacheDirectoryURL() -> URL? {
         guard let caches = try? FileManager.default.url(
             for: .cachesDirectory,
             in: .userDomainMask,
@@ -299,7 +359,7 @@ actor DiagramRenderCoordinator {
                 request.kind.rawValue,
                 MarkdownParserService.digest(request.source),
             ] + rendererMaterial + [
-                "svg-sanitizer-v1",
+                request.kind == .d2 ? "svg-sanitizer-v1" : "png-preview-v1",
             ]).joined(separator: "\u{0}")
         )
     }

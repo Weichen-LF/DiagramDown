@@ -6,6 +6,21 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- A Settings action that clears syntax-highlighting caches and all rendered
+  Mermaid/D2 memory and disk caches
+- Local Markdown images from document-relative paths, absolute paths, and
+  `file://` URLs, including PNG, JPEG, GIF, TIFF, BMP, HEIC, WebP, and SVG
+
+### Fixed
+
+- Mermaid previews now use PNG output from the local `mmdc`, preserving its
+  default HTML labels; SVG export writes the original `mmdc` SVG without
+  application-side sanitation
+- Removed the Base Mermaid theme option because current Mermaid CLI versions do
+  not accept it through the command-line theme argument
+
 ## [0.23.0] - 2026-07-26
 
 ### Added

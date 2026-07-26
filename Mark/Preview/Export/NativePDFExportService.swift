@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 struct PreviewExportSnapshot {
     let document: PreviewDocument
     let resolvedCodeBlocks: [PreviewBlockID: AttributedString]
-    let resolvedDiagrams: [PreviewBlockID: SVGDocument]
+    let resolvedDiagrams: [PreviewBlockID: DiagramDocument]
     let diagramCodeFallbacks: [PreviewBlockID: AttributedString]
     let diagramErrors: [PreviewBlockID: String]
     let resolvedImages: [PreviewBlockID: NSImage]
@@ -75,7 +75,7 @@ enum NativePDFExportService {
         workspaceRootURL: URL
     ) async throws -> PreviewExportSnapshot {
         var codeBlocks: [PreviewBlockID: AttributedString] = [:]
-        var diagrams: [PreviewBlockID: SVGDocument] = [:]
+        var diagrams: [PreviewBlockID: DiagramDocument] = [:]
         var diagramCodeFallbacks: [PreviewBlockID: AttributedString] = [:]
         var diagramErrors: [PreviewBlockID: String] = [:]
         var images: [PreviewBlockID: NSImage] = [:]
@@ -294,7 +294,7 @@ private struct PrintablePreviewBlockView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         case .mermaid, .d2:
             if let diagram = snapshot.resolvedDiagrams[block.id] {
-                NativeSVGView(
+                NativeDiagramView(
                     document: diagram,
                     background: theme.background
                 )

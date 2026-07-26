@@ -8,7 +8,7 @@ import Foundation
 nonisolated enum PreviewImageLoadingError: Equatable, LocalizedError, Sendable {
     case invalidEmbeddedImage
     case remoteImageDisabled
-    case outsideWorkspace
+    case unsupportedFormat
     case missingOrTooLarge
 
     var errorDescription: String? {
@@ -17,19 +17,34 @@ nonisolated enum PreviewImageLoadingError: Equatable, LocalizedError, Sendable {
             "The embedded image is invalid or too large."
         case .remoteImageDisabled:
             "Remote images are disabled."
-        case .outsideWorkspace:
-            "The image is outside this workspace."
+        case .unsupportedFormat:
+            "The local image format is unsupported."
         case .missingOrTooLarge:
-            "The image is missing, unsupported, or too large."
+            "The image is missing or too large."
         }
     }
 }
 
 nonisolated enum PreviewImageResolver {
+    private static let supportedFileExtensions: Set<String> = [
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "tif",
+        "tiff",
+        "bmp",
+        "heic",
+        "heif",
+        "webp",
+        "svg",
+        "ico",
+    ]
+
     static func data(
         for image: PreviewImage,
         documentURL: URL?,
-        workspaceRootURL: URL
+        workspaceRootURL _: URL
     ) throws -> Data {
         let source = image.source
         if source.lowercased().hasPrefix("data:image/") {
@@ -44,24 +59,40 @@ nonisolated enum PreviewImageResolver {
             return data
         }
 
-        guard !source.contains("://"),
-              let documentDirectory = documentURL?.deletingLastPathComponent() else {
-            throw PreviewImageLoadingError.remoteImageDisabled
+        let candidate: URL
+        let trimmedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let parsedURL = URL(string: trimmedSource), parsedURL.scheme != nil {
+            guard parsedURL.isFileURL else {
+                throw PreviewImageLoadingError.remoteImageDisabled
+            }
+            candidate = parsedURL
+        } else {
+            let decodedSource = trimmedSource.removingPercentEncoding ?? trimmedSource
+            if decodedSource.hasPrefix("~/") {
+                candidate = URL(
+                    fileURLWithPath: NSString(string: decodedSource).expandingTildeInPath
+                )
+            } else if NSString(string: decodedSource).isAbsolutePath {
+                candidate = URL(fileURLWithPath: decodedSource)
+            } else {
+                guard let documentDirectory = documentURL?.deletingLastPathComponent() else {
+                    throw PreviewImageLoadingError.missingOrTooLarge
+                }
+                candidate = documentDirectory.appendingPathComponent(decodedSource)
+            }
         }
 
-        let candidate = documentDirectory
-            .appendingPathComponent(source)
+        let resolvedCandidate = candidate
             .standardizedFileURL
             .resolvingSymlinksInPath()
-        let canonicalRoot = workspaceRootURL
-            .standardizedFileURL
-            .resolvingSymlinksInPath()
-        guard WorkspacePathPolicy.contains(candidate, within: canonicalRoot) else {
-            throw PreviewImageLoadingError.outsideWorkspace
+        guard supportedFileExtensions.contains(
+            resolvedCandidate.pathExtension.lowercased()
+        ) else {
+            throw PreviewImageLoadingError.unsupportedFormat
         }
 
         do {
-            let values = try candidate.resourceValues(forKeys: [
+            let values = try resolvedCandidate.resourceValues(forKeys: [
                 .fileSizeKey,
                 .isRegularFileKey,
                 .isSymbolicLinkKey,
@@ -72,7 +103,7 @@ nonisolated enum PreviewImageResolver {
                   size <= 16 * 1_024 * 1_024 else {
                 throw PreviewImageLoadingError.missingOrTooLarge
             }
-            let data = try Data(contentsOf: candidate, options: [.mappedIfSafe])
+            let data = try Data(contentsOf: resolvedCandidate, options: [.mappedIfSafe])
             guard data.count <= 16 * 1_024 * 1_024 else {
                 throw PreviewImageLoadingError.missingOrTooLarge
             }
