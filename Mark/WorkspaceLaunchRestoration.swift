@@ -36,17 +36,21 @@ final class WorkspaceLaunchRestoration: ObservableObject {
     private let defaults: any WorkspaceLaunchStorage
     private let storageKey: String
     private let recentStorageKey: String
+    private let resolveReferenceURL: (WorkspaceReference) -> URL?
     private var state = WorkspaceLaunchState()
     @Published private(set) var recentWorkspaces: [RecentWorkspace] = []
 
     init(
         defaults: any WorkspaceLaunchStorage = UserDefaults.standard,
         storageKey: String = "Workspace.lastReference",
-        recentStorageKey: String? = nil
+        recentStorageKey: String? = nil,
+        resolveReferenceURL: @escaping (WorkspaceReference) -> URL? =
+            WorkspaceLaunchRestoration.systemResolvedURL
     ) {
         self.defaults = defaults
         self.storageKey = storageKey
         self.recentStorageKey = recentStorageKey ?? "\(storageKey).recent"
+        self.resolveReferenceURL = resolveReferenceURL
         if let data = defaults.data(forKey: self.recentStorageKey),
            let decoded = try? JSONDecoder().decode([RecentWorkspace].self, from: data) {
             recentWorkspaces = Array(decoded.prefix(10))
@@ -58,7 +62,7 @@ final class WorkspaceLaunchRestoration: ObservableObject {
             return
         }
         defaults.set(encoded, forKey: storageKey)
-        let resolvedReferenceURL = resolvedURL(for: reference)?.standardizedFileURL
+        let resolvedReferenceURL = resolveReferenceURL(reference)?.standardizedFileURL
         let displayName = resolvedReferenceURL?.lastPathComponent ?? "Folder"
         recentWorkspaces.removeAll { recent in
             if recent.reference.id == reference.id {
@@ -67,7 +71,7 @@ final class WorkspaceLaunchRestoration: ObservableObject {
             guard let resolvedReferenceURL else {
                 return false
             }
-            return resolvedURL(for: recent.reference)?.standardizedFileURL
+            return resolveReferenceURL(recent.reference)?.standardizedFileURL
                 == resolvedReferenceURL
         }
         recentWorkspaces.insert(
@@ -91,7 +95,9 @@ final class WorkspaceLaunchRestoration: ObservableObject {
         defaults.removeObject(forKey: recentStorageKey)
     }
 
-    private func resolvedURL(for reference: WorkspaceReference) -> URL? {
+    nonisolated private static func systemResolvedURL(
+        for reference: WorkspaceReference
+    ) -> URL? {
         var isStale = false
         return try? URL(
             resolvingBookmarkData: reference.bookmarkData,

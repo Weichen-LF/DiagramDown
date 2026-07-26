@@ -608,10 +608,15 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
         let defaults = MemoryStorage()
         let first = WorkspaceReference(id: UUID(), bookmarkData: Data("first".utf8))
         let second = WorkspaceReference(id: UUID(), bookmarkData: Data("second".utf8))
+        let resolvedURLs = [
+            first.id: URL(fileURLWithPath: "/tmp/first"),
+            second.id: URL(fileURLWithPath: "/tmp/second"),
+        ]
         let restoration = WorkspaceLaunchRestoration(
             defaults: defaults,
             storageKey: storageKey,
-            recentStorageKey: recentStorageKey
+            recentStorageKey: recentStorageKey,
+            resolveReferenceURL: { resolvedURLs[$0.id] }
         )
 
         restoration.remember(first)
@@ -622,7 +627,8 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
         let restored = WorkspaceLaunchRestoration(
             defaults: defaults,
             storageKey: storageKey,
-            recentStorageKey: recentStorageKey
+            recentStorageKey: recentStorageKey,
+            resolveReferenceURL: { resolvedURLs[$0.id] }
         )
         XCTAssertEqual(restored.recentWorkspaces.map(\.id), [first.id, second.id])
         restored.clearRecentWorkspaces()
