@@ -35,8 +35,8 @@ Mermaid and D2 fenced blocks become live diagrams through command-line tools
 installed on your Mac, without a server or cloud account.
 
 The native SwiftUI preview, Tree-sitter syntax highlighting, and Swift Markdown
-formatter are bundled with the app. DiagramDown calls local `mmdc` and `d2`
-executables directly; your documents stay on your Mac.
+formatter are bundled with the app. DiagramDown calls local `mmdc`/`mmdr` and
+`d2` executables directly; your documents stay on your Mac.
 
 ## Features
 
@@ -64,11 +64,13 @@ executables directly; your documents stay on your Mac.
 ### Preview and diagrams
 
 - Live Markdown preview with light/dark themes and zoom
-- Mermaid and D2 fences render through local CLIs; missing tools fall back to
-  fenced source
+- Mermaid and D2 fences render through local CLIs; choose `mmdc` (PNG) or
+  `mmdr` (SVG) for Mermaid in Settings; missing tools fall back to fenced source
 - Focused Mermaid/D2 viewer: resize the sheet, pinch to zoom, and export SVG
-- Sharper Mermaid PNG previews at 2× render scale without changing layout size
+- Sharper Mermaid PNG previews at 2× render scale when using `mmdc`
 - Mermaid and D2 fences show as code while rendering, then swap in when ready
+- Sidebar tree auto-refreshes when files or folders change on disk
+- Active-line highlighting in the Markdown editor
 - Local images from relative, absolute, or `file://` paths (PNG, JPEG, GIF,
   TIFF, BMP, HEIC, WebP, SVG, and more), with a resizable full viewer
 - Open files in **Preview Only** by default; switch layouts anytime from the
@@ -97,11 +99,13 @@ For diagram previews, install either or both optional tools:
 
 ```sh
 npm install -g @mermaid-js/mermaid-cli
+brew tap 1jehuang/mmdr && brew install mmdr
 brew install d2
 ```
 
-Missing tools simply leave their fenced source visible as code. Their detected
-versions and paths are shown under **Settings > Diagram Tools**.
+Choose Mermaid rendering (`mmdc` PNG or `mmdr` SVG) under **Settings > Mermaid
+Preview**. Missing tools simply leave their fenced source visible as code.
+Their detected versions and paths are shown under **Settings > Diagram Tools**.
 
 DiagramDown requires macOS 15 or later on Apple Silicon.
 
@@ -117,11 +121,9 @@ DiagramDown requires macOS 15 or later on Apple Silicon.
 
 ## Current release
 
-DiagramDown `0.25.0` is an Apple Silicon release. It adds image insertion with
-optional `assets/` copy, resizable Mermaid/D2 and image viewers, sharper
-Mermaid PNG previews at 2× scale, Preview Only as the default layout, and
-non-blocking diagram rendering that shows fenced source until CLI output is
-ready.
+DiagramDown `0.26.0` is an Apple Silicon release. It refreshes the sidebar tree
+when the filesystem changes, highlights the active editor line, and lets you
+choose Mermaid rendering with `mmdc` (PNG) or `mmdr` (SVG).
 
 Intel Macs and automatic updates are not available yet.
 

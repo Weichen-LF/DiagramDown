@@ -9,6 +9,7 @@ import SwiftUI
 enum PreviewPreferences {
     static let appearanceKey = "Appearance.mode"
     static let markdownThemeKey = "MarkdownPreview.theme"
+    static let mermaidRendererKey = "MermaidPreview.renderer"
     static let mermaidLightThemeKey = "MermaidPreview.lightTheme"
     static let mermaidDarkThemeKey = "MermaidPreview.darkTheme"
     static let zoomKey = "MarkdownPreview.zoom"
@@ -17,6 +18,36 @@ enum PreviewPreferences {
     static let d2DarkThemeIDKey = "D2Preview.darkThemeID"
     static let d2PaddingKey = "D2Preview.padding"
     static let d2SketchKey = "D2Preview.sketch"
+}
+
+enum MermaidRendererEngine: String, CaseIterable, Hashable, Identifiable, Sendable {
+    case mmdc
+    case mmdr
+
+    nonisolated var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .mmdc:
+            "mmdc (PNG)"
+        case .mmdr:
+            "mmdr (SVG)"
+        }
+    }
+
+    var toolKind: DiagramToolKind {
+        switch self {
+        case .mmdc: .mermaid
+        case .mmdr: .mmdr
+        }
+    }
+
+    nonisolated static var current: MermaidRendererEngine {
+        let raw = UserDefaults.standard.string(
+            forKey: PreviewPreferences.mermaidRendererKey
+        )
+        return MermaidRendererEngine(rawValue: raw ?? "") ?? .mmdr
+    }
 }
 
 enum AppAppearance: String, CaseIterable, Hashable, Identifiable, Sendable {
@@ -93,6 +124,7 @@ enum MermaidPreviewTheme: String, CaseIterable, Hashable, Identifiable, Sendable
 struct PreviewConfiguration: Hashable, Sendable {
     let appearance: AppAppearance
     let markdownTheme: MarkdownPreviewTheme
+    let mermaidRenderer: MermaidRendererEngine
     let mermaidLightTheme: MermaidPreviewTheme
     let mermaidDarkTheme: MermaidPreviewTheme
     let d2: D2RenderConfiguration
@@ -103,6 +135,8 @@ struct PreviewSettingsView: View {
         AppAppearance.system.rawValue
     @AppStorage(PreviewPreferences.markdownThemeKey) private var markdownTheme =
         MarkdownPreviewTheme.diagramDown.rawValue
+    @AppStorage(PreviewPreferences.mermaidRendererKey) private var mermaidRenderer =
+        MermaidRendererEngine.mmdr.rawValue
     @AppStorage(PreviewPreferences.mermaidLightThemeKey) private var mermaidLightTheme =
         MermaidPreviewTheme.default.rawValue
     @AppStorage(PreviewPreferences.mermaidDarkThemeKey) private var mermaidDarkTheme =
@@ -119,6 +153,7 @@ struct PreviewSettingsView: View {
     @AppStorage(PreviewPreferences.d2SketchKey) private var d2Sketch =
         D2RenderConfiguration.preview.sketch
     @State private var mermaidToolStatus = DiagramToolStatus.missing
+    @State private var mmdrToolStatus = DiagramToolStatus.missing
     @State private var d2ToolStatus = DiagramToolStatus.missing
     @State private var isRefreshingTools = false
     @State private var isClearingCaches = false
@@ -128,30 +163,6 @@ struct PreviewSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Diagram Tools") {
-                toolStatusRow(kind: .mermaid, status: mermaidToolStatus)
-                Divider()
-                toolStatusRow(kind: .d2, status: d2ToolStatus)
-
-                HStack {
-                    Text("Diagram rendering uses command-line tools installed on this Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button {
-                        Task { await refreshTools() }
-                    } label: {
-                        if isRefreshingTools {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Label("Refresh", systemImage: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(isRefreshingTools)
-                }
-            }
-
             Section("Appearance") {
                 Picker("Color mode", selection: $appearance) {
                     ForEach(AppAppearance.allCases) { appearance in
@@ -176,16 +187,31 @@ struct PreviewSettingsView: View {
             }
 
             Section("Mermaid Preview") {
+                Picker("Renderer", selection: $mermaidRenderer) {
+                    ForEach(MermaidRendererEngine.allCases) { engine in
+                        Text(engine.displayName).tag(engine.rawValue)
+                    }
+                }
+                Text(
+                    mermaidRenderer == MermaidRendererEngine.mmdr.rawValue
+                        ? "mmdr renders SVG previews. Theme pickers below apply only to mmdc."
+                        : "mmdc renders PNG previews at 2× scale."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
                 Picker("Light theme", selection: $mermaidLightTheme) {
                     ForEach(MermaidPreviewTheme.allCases) { theme in
                         Text(theme.displayName).tag(theme.rawValue)
                     }
                 }
+                .disabled(mermaidRenderer == MermaidRendererEngine.mmdr.rawValue)
                 Picker("Dark theme", selection: $mermaidDarkTheme) {
                     ForEach(MermaidPreviewTheme.allCases) { theme in
                         Text(theme.displayName).tag(theme.rawValue)
                     }
                 }
+                .disabled(mermaidRenderer == MermaidRendererEngine.mmdr.rawValue)
             }
 
             Section("D2 Preview") {
@@ -246,6 +272,32 @@ struct PreviewSettingsView: View {
                 }
             }
 
+            Section("Diagram Tools") {
+                toolStatusRow(kind: .mermaid, status: mermaidToolStatus)
+                Divider()
+                toolStatusRow(kind: .mmdr, status: mmdrToolStatus)
+                Divider()
+                toolStatusRow(kind: .d2, status: d2ToolStatus)
+
+                HStack {
+                    Text("Diagram rendering uses command-line tools installed on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await refreshTools() }
+                    } label: {
+                        if isRefreshingTools {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(isRefreshingTools)
+                }
+            }
+
             Section {
                 HStack {
                     Text("Changes apply to every open document.")
@@ -256,9 +308,17 @@ struct PreviewSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 560, height: 820)
+        .frame(width: 560, height: 900)
         .task {
             await refreshTools()
+        }
+        .onChange(of: mermaidRenderer) { _, _ in
+            UserDefaults.standard.set(
+                UserDefaults.standard.integer(
+                    forKey: DiagramToolRegistry.revisionPreferenceKey
+                ) &+ 1,
+                forKey: DiagramToolRegistry.revisionPreferenceKey
+            )
         }
         .confirmationDialog(
             "Clear all preview caches?",
@@ -366,6 +426,7 @@ struct PreviewSettingsView: View {
         isRefreshingTools = true
         let statuses = await DiagramToolRegistry.shared.refreshAll(notifyViews: true)
         mermaidToolStatus = statuses[.mermaid] ?? .missing
+        mmdrToolStatus = statuses[.mmdr] ?? .missing
         d2ToolStatus = statuses[.d2] ?? .missing
         isRefreshingTools = false
     }
@@ -413,6 +474,8 @@ struct PreviewSettingsView: View {
         switch kind {
         case .mermaid:
             mermaidToolStatus = status
+        case .mmdr:
+            mmdrToolStatus = status
         case .d2:
             d2ToolStatus = status
         }
@@ -422,6 +485,7 @@ struct PreviewSettingsView: View {
         let d2Defaults = D2RenderConfiguration.preview
         appearance = AppAppearance.system.rawValue
         markdownTheme = MarkdownPreviewTheme.diagramDown.rawValue
+        mermaidRenderer = MermaidRendererEngine.mmdr.rawValue
         mermaidLightTheme = MermaidPreviewTheme.default.rawValue
         mermaidDarkTheme = MermaidPreviewTheme.dark.rawValue
         zoom = PreviewZoom.defaultValue

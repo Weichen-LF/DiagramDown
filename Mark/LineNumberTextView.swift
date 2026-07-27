@@ -19,6 +19,7 @@ final class LineNumberTextView: NSTextView {
         style.alignment = .right
         return style
     }()
+    private let activeLineHighlightColor = NSColor.labelColor.withAlphaComponent(0.06)
 
     convenience init() {
         let textStorage = NSTextStorage()
@@ -49,6 +50,11 @@ final class LineNumberTextView: NSTextView {
         needsDisplay = true
     }
 
+    override func drawBackground(in rect: NSRect) {
+        super.drawBackground(in: rect)
+        drawActiveLineHighlight(in: rect)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
@@ -62,6 +68,62 @@ final class LineNumberTextView: NSTextView {
         graphicsContext.cgContext.clip(to: bounds)
         drawPlaceholderIfNeeded(in: visibleRect)
         drawLineNumbers(in: visibleRect)
+    }
+
+    private func drawActiveLineHighlight(in dirtyRect: NSRect) {
+        guard let layoutManager,
+              let textContainer,
+              let highlightRect = activeLineHighlightRect(
+                layoutManager: layoutManager,
+                textContainer: textContainer
+              ),
+              highlightRect.intersects(dirtyRect) else {
+            return
+        }
+
+        activeLineHighlightColor.setFill()
+        highlightRect.fill()
+    }
+
+    private func activeLineHighlightRect(
+        layoutManager: NSLayoutManager,
+        textContainer: NSTextContainer
+    ) -> NSRect? {
+        layoutManager.ensureLayout(for: textContainer)
+        let source = string as NSString
+        let offsets = resolvedLineStartOffsets(for: source)
+        let selectedIndex = min(selectedRange().location, source.length)
+        let selectedLine = lineNumber(forCharacterIndex: selectedIndex, offsets: offsets)
+        let lineStart = offsets[selectedLine - 1]
+        let isTrailingEmptyLine = source.length == 0
+            || (selectedLine == offsets.count && source.character(at: source.length - 1) == 10)
+
+        let lineRect: NSRect
+        if isTrailingEmptyLine, selectedLine == offsets.count {
+            var extraLineRect = layoutManager.extraLineFragmentRect
+            if extraLineRect.height <= 0 {
+                extraLineRect.size.height = font?.lineHeight ?? numberFont.lineHeight
+            }
+            lineRect = extraLineRect
+        } else {
+            let glyphIndex = layoutManager.glyphIndexForCharacter(at: lineStart)
+            lineRect = layoutManager.lineFragmentRect(
+                forGlyphAt: glyphIndex,
+                effectiveRange: nil
+            )
+        }
+
+        guard lineRect.height > 0 else {
+            return nil
+        }
+
+        // Match IDEA: shade the text row from the gutter edge to the right.
+        return NSRect(
+            x: gutterWidth,
+            y: textContainerOrigin.y + lineRect.minY,
+            width: max(bounds.width - gutterWidth, 0),
+            height: lineRect.height
+        )
     }
 
     private func drawPlaceholderIfNeeded(in visibleRect: NSRect) {

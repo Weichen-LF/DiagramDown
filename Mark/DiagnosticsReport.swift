@@ -53,6 +53,7 @@ struct D2CacheStatistics: Equatable, Sendable {
 struct DiagnosticsPreferences: Equatable, Sendable {
     let appearance: String
     let markdownTheme: String
+    let mermaidRenderer: String
     let mermaidLightTheme: String
     let mermaidDarkTheme: String
     let previewZoom: Int
@@ -74,6 +75,11 @@ struct DiagnosticsPreferences: Equatable, Sendable {
                 defaults.string(forKey: PreviewPreferences.markdownThemeKey),
                 as: MarkdownPreviewTheme.self,
                 fallback: .diagramDown
+            ),
+            mermaidRenderer: validatedRawValue(
+                defaults.string(forKey: PreviewPreferences.mermaidRendererKey),
+                as: MermaidRendererEngine.self,
+                fallback: .mmdr
             ),
             mermaidLightTheme: validatedRawValue(
                 defaults.string(forKey: PreviewPreferences.mermaidLightThemeKey),
@@ -162,6 +168,7 @@ struct DiagnosticsSnapshot: Equatable, Sendable {
     let architecture: String
     let locale: String
     let mermaidCLIAvailable: Bool
+    let mmdrCLIAvailable: Bool
     let d2CLIAvailable: Bool
     let preferences: DiagnosticsPreferences
     let cache: D2CacheStatistics
@@ -195,6 +202,11 @@ enum DiagnosticsReport {
                 defaults: defaults,
                 fileManager: fileManager
             ),
+            mmdrCLIAvailable: toolAvailable(
+                .mmdr,
+                defaults: defaults,
+                fileManager: fileManager
+            ),
             d2CLIAvailable: toolAvailable(
                 .d2,
                 defaults: defaults,
@@ -221,12 +233,14 @@ enum DiagnosticsReport {
         Preview Preferences
         Appearance: \(snapshot.preferences.appearance)
         Markdown theme: \(snapshot.preferences.markdownTheme)
+        Mermaid renderer: \(snapshot.preferences.mermaidRenderer)
         Mermaid light theme: \(snapshot.preferences.mermaidLightTheme)
         Mermaid dark theme: \(snapshot.preferences.mermaidDarkTheme)
         Preview zoom: \(snapshot.preferences.previewZoom)%
 
         Diagram Tools
         Mermaid CLI available: \(yesNo(snapshot.mermaidCLIAvailable))
+        mmdr available: \(yesNo(snapshot.mmdrCLIAvailable))
         D2 CLI available: \(yesNo(snapshot.d2CLIAvailable))
 
         D2 Preview

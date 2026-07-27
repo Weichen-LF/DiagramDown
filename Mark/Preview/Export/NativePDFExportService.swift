@@ -103,6 +103,7 @@ enum NativePDFExportService {
                             kind: kind,
                             source: source,
                             configuration: DiagramConfiguration(
+                                mermaidRenderer: configuration.mermaidRenderer,
                                 mermaidTheme: dark
                                     ? configuration.mermaidDarkTheme
                                     : configuration.mermaidLightTheme,

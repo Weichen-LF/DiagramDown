@@ -12,6 +12,7 @@ nonisolated enum DiagramKind: String, Hashable, Sendable {
 }
 
 nonisolated struct DiagramConfiguration: Hashable, Sendable {
+    let mermaidRenderer: MermaidRendererEngine
     let mermaidTheme: MermaidPreviewTheme
     let appearance: String
     let d2: D2RenderConfiguration
@@ -85,7 +86,7 @@ actor DiagramRenderCoordinator {
     func render(_ request: DiagramRenderRequest) async throws -> DiagramRenderResult {
         try Task.checkCancellation()
         let toolKind: DiagramToolKind = switch request.kind {
-        case .mermaid: .mermaid
+        case .mermaid: request.configuration.mermaidRenderer.toolKind
         case .d2: .d2
         }
         let tool = try await toolRegistry.installedTool(for: toolKind)
@@ -95,7 +96,8 @@ actor DiagramRenderCoordinator {
         }
         if let cached = try await diskCachedDocument(
             forKey: key,
-            kind: request.kind
+            kind: request.kind,
+            mermaidRenderer: request.configuration.mermaidRenderer
         ) {
             storeInMemory(cached, forKey: key)
             return result(for: request, document: cached, cacheKey: key)
@@ -112,23 +114,39 @@ actor DiagramRenderCoordinator {
             ).svg
             document = .svg(try await SVGSanitizer.shared.sanitize(rawSVG))
         case .mermaid:
-            let png = try await mermaidRenderService.renderPNG(
-                source: request.source,
-                theme: request.configuration.mermaidTheme,
-                appearance: request.configuration.appearance,
-                tool: tool
-            )
-            document = .raster(
-                try RasterDiagramDocument(
-                    data: png,
-                    displayScale: CGFloat(MermaidRenderService.pngScale)
+            switch request.configuration.mermaidRenderer {
+            case .mmdc:
+                let png = try await mermaidRenderService.renderPNG(
+                    source: request.source,
+                    theme: request.configuration.mermaidTheme,
+                    appearance: request.configuration.appearance,
+                    tool: tool
                 )
-            )
+                document = .raster(
+                    try RasterDiagramDocument(
+                        data: png,
+                        displayScale: CGFloat(MermaidRenderService.pngScale)
+                    )
+                )
+            case .mmdr:
+                let rawSVG = try await mermaidRenderService.renderSVG(
+                    source: request.source,
+                    theme: request.configuration.mermaidTheme,
+                    engine: .mmdr,
+                    tool: tool
+                )
+                document = .svg(try await SVGSanitizer.shared.sanitize(rawSVG))
+            }
         }
         try Task.checkCancellation()
 
         storeInMemory(document, forKey: key)
-        storeOnDisk(document, forKey: key)
+        storeOnDisk(
+            document,
+            forKey: key,
+            kind: request.kind,
+            mermaidRenderer: request.configuration.mermaidRenderer
+        )
 
         return result(for: request, document: document, cacheKey: key)
     }
@@ -137,10 +155,12 @@ actor DiagramRenderCoordinator {
         guard request.kind == .mermaid else {
             throw MermaidRenderError.invalidSVG
         }
-        let tool = try await toolRegistry.installedTool(for: .mermaid)
+        let engine = request.configuration.mermaidRenderer
+        let tool = try await toolRegistry.installedTool(for: engine.toolKind)
         return try await mermaidRenderService.renderSVG(
             source: request.source,
             theme: request.configuration.mermaidTheme,
+            engine: engine,
             tool: tool
         )
     }
@@ -177,9 +197,14 @@ actor DiagramRenderCoordinator {
 
     private func diskCachedDocument(
         forKey key: String,
-        kind: DiagramKind
+        kind: DiagramKind,
+        mermaidRenderer: MermaidRendererEngine
     ) async throws -> DiagramDocument? {
-        guard let url = diskCacheFileURL(forKey: key, kind: kind) else {
+        guard let url = diskCacheFileURL(
+            forKey: key,
+            kind: kind,
+            mermaidRenderer: mermaidRenderer
+        ) else {
             return nil
         }
         do {
@@ -207,14 +232,24 @@ actor DiagramRenderCoordinator {
             )
             switch kind {
             case .mermaid:
-                guard let raster = try? RasterDiagramDocument(
-                    data: data,
-                    displayScale: CGFloat(MermaidRenderService.pngScale)
-                ) else {
-                    try? FileManager.default.removeItem(at: url)
-                    return nil
+                switch mermaidRenderer {
+                case .mmdc:
+                    guard let raster = try? RasterDiagramDocument(
+                        data: data,
+                        displayScale: CGFloat(MermaidRenderService.pngScale)
+                    ) else {
+                        try? FileManager.default.removeItem(at: url)
+                        return nil
+                    }
+                    return .raster(raster)
+                case .mmdr:
+                    guard let svg = String(data: data, encoding: .utf8),
+                          let sanitized = try? await SVGSanitizer.shared.sanitize(svg) else {
+                        try? FileManager.default.removeItem(at: url)
+                        return nil
+                    }
+                    return .svg(sanitized)
                 }
-                return .raster(raster)
             case .d2:
                 guard let svg = String(data: data, encoding: .utf8),
                       let sanitized = try? await SVGSanitizer.shared.sanitize(svg) else {
@@ -228,21 +263,23 @@ actor DiagramRenderCoordinator {
         }
     }
 
-    private func storeOnDisk(_ document: DiagramDocument, forKey key: String) {
+    private func storeOnDisk(
+        _ document: DiagramDocument,
+        forKey key: String,
+        kind: DiagramKind,
+        mermaidRenderer: MermaidRendererEngine
+    ) {
         let data: Data = switch document {
         case .svg(let svg):
             Data(svg.sanitizedXML.utf8)
         case .raster(let raster):
             raster.data
         }
-        let kind: DiagramKind = switch document {
-        case .svg: .d2
-        case .raster: .mermaid
-        }
         guard data.count <= maximumCachedOutputBytes,
               let url = diskCacheFileURL(
                 forKey: key,
-                kind: kind
+                kind: kind,
+                mermaidRenderer: mermaidRenderer
               ) else {
             return
         }
@@ -306,10 +343,18 @@ actor DiagramRenderCoordinator {
 
     private func diskCacheFileURL(
         forKey key: String,
-        kind: DiagramKind
+        kind: DiagramKind,
+        mermaidRenderer: MermaidRendererEngine
     ) -> URL? {
         guard key.count >= 4, let root = diskCacheDirectoryURL else {
             return nil
+        }
+        let fileExtension: String
+        switch kind {
+        case .d2:
+            fileExtension = "svg"
+        case .mermaid:
+            fileExtension = mermaidRenderer == .mmdr ? "svg" : "png"
         }
         return root
             .appendingPathComponent(String(key.prefix(2)), isDirectory: true)
@@ -318,7 +363,7 @@ actor DiagramRenderCoordinator {
                 isDirectory: true
             )
             .appendingPathComponent(
-                "\(key).\(kind == .mermaid ? "png" : "svg")",
+                "\(key).\(fileExtension)",
                 isDirectory: false
             )
     }
@@ -345,6 +390,7 @@ actor DiagramRenderCoordinator {
         tool: InstalledDiagramTool
     ) -> String {
         let rendererMaterial: [String]
+        let formatToken: String
         switch request.kind {
         case .d2:
             rendererMaterial = [
@@ -353,22 +399,35 @@ actor DiagramRenderCoordinator {
                 request.configuration.d2.cacheDescriptor,
                 request.configuration.appearance,
             ]
+            formatToken = "svg-sanitizer-v3-remove-canvas"
         case .mermaid:
-            rendererMaterial = [
-                MermaidRenderService.rendererVersion,
-                tool.cacheDescriptor,
-                request.configuration.mermaidTheme.rawValue,
-                request.configuration.appearance,
-                "\(MermaidRenderService.pngScale)",
-            ]
+            switch request.configuration.mermaidRenderer {
+            case .mmdc:
+                rendererMaterial = [
+                    MermaidRenderService.mmdcRendererVersion,
+                    tool.cacheDescriptor,
+                    request.configuration.mermaidTheme.rawValue,
+                    request.configuration.appearance,
+                    "\(MermaidRenderService.pngScale)",
+                ]
+                formatToken = "png-preview-v1"
+            case .mmdr:
+                rendererMaterial = [
+                    MermaidRenderService.mmdrRendererVersion,
+                    tool.cacheDescriptor,
+                    request.configuration.appearance,
+                ]
+                formatToken = "svg-sanitizer-v3-remove-canvas"
+            }
         }
 
         return MarkdownParserService.digest(
             ([
                 request.kind.rawValue,
+                request.configuration.mermaidRenderer.rawValue,
                 MarkdownParserService.digest(request.source),
             ] + rendererMaterial + [
-                request.kind == .d2 ? "svg-sanitizer-v1" : "png-preview-v1",
+                formatToken,
             ]).joined(separator: "\u{0}")
         )
     }

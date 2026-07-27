@@ -485,6 +485,79 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(session.activeFile?.text, "# Workspace\n")
     }
 
+    func testVisibleTreeRefreshesWhenFilesystemAddsFiles() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("# Workspace\n".utf8).write(
+            to: root.appendingPathComponent("README.md")
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+
+        await session.loadRoot()
+        XCTAssertEqual(session.rootNodes.map(\.name), ["README.md"])
+
+        try Data("# New\n".utf8).write(
+            to: root.appendingPathComponent("notes.md")
+        )
+        await session.refreshVisibleTreeIfNeeded()
+
+        XCTAssertEqual(
+            session.rootNodes.map(\.name).sorted(),
+            ["README.md", "notes.md"]
+        )
+    }
+
+    func testVisibleTreeRefreshIsNoOpWhenNothingChanged() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("# Workspace\n".utf8).write(
+            to: root.appendingPathComponent("README.md")
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+
+        await session.loadRoot()
+        let rootBefore = session.rootNodes
+
+        var publishCount = 0
+        let cancellable = session.objectWillChange.sink { _ in
+            publishCount += 1
+        }
+        defer { cancellable.cancel() }
+
+        await session.refreshVisibleTreeIfNeeded()
+        await session.refreshVisibleTreeIfNeeded()
+
+        XCTAssertEqual(session.rootNodes, rootBefore)
+        XCTAssertEqual(publishCount, 0)
+    }
+
+    func testOpeningTreeRowCanPickUpFilesystemAdditions() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let readmeURL = root.appendingPathComponent("README.md")
+        try Data("# Workspace\n".utf8).write(to: readmeURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+
+        await session.loadRoot()
+        try Data("# New\n".utf8).write(
+            to: root.appendingPathComponent("notes.md")
+        )
+        await session.refreshVisibleTreeIfNeeded()
+        let notes = try XCTUnwrap(
+            session.rootNodes.first(where: { $0.name == "notes.md" })
+        )
+        await session.openFile(notes)
+
+        XCTAssertEqual(session.activeFile?.url, root.appendingPathComponent("notes.md").standardizedFileURL)
+        XCTAssertEqual(session.activeFile?.text, "# New\n")
+    }
+
     func testSaveAllWritesEveryDirtyBuffer() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -869,10 +942,12 @@ final class DiagnosticsReportTests: XCTestCase {
             architecture: "arm64",
             locale: "en_US",
             mermaidCLIAvailable: true,
+            mmdrCLIAvailable: true,
             d2CLIAvailable: true,
             preferences: DiagnosticsPreferences(
                 appearance: "dark",
                 markdownTheme: "github",
+                mermaidRenderer: "mmdr",
                 mermaidLightTheme: "forest",
                 mermaidDarkTheme: "dark",
                 previewZoom: 125,
@@ -890,6 +965,8 @@ final class DiagnosticsReportTests: XCTestCase {
         XCTAssertTrue(report.contains("Version: 0.19.0 (19)"))
         XCTAssertTrue(report.contains("Architecture: arm64"))
         XCTAssertTrue(report.contains("Markdown theme: github"))
+        XCTAssertTrue(report.contains("Mermaid renderer: mmdr"))
+        XCTAssertTrue(report.contains("mmdr available: yes"))
         XCTAssertTrue(report.contains("Layout: elk"))
         XCTAssertTrue(report.contains("Disk cache entries: 4"))
         XCTAssertTrue(report.contains("document content"))
@@ -1131,6 +1208,10 @@ final class DiagramToolRegistryTests: XCTestCase {
         XCTAssertEqual(
             DiagramToolKind.mermaid.installCommand,
             "npm install -g @mermaid-js/mermaid-cli"
+        )
+        XCTAssertEqual(
+            DiagramToolKind.mmdr.installCommand,
+            "brew tap 1jehuang/mmdr && brew install mmdr"
         )
         XCTAssertEqual(DiagramToolKind.d2.installCommand, "brew install d2")
     }

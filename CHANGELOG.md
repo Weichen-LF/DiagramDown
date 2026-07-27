@@ -6,6 +6,32 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-07-27
+
+### Added
+
+- Sidebar directory tree auto-refreshes when files or folders change on disk
+- Active-line highlighting in the Markdown editor, similar to JetBrains IDEs
+- Settings option to render Mermaid with `mmdc` (PNG) or `mmdr` (SVG)
+- Mermaid renderer defaults to `mmdr`
+
+### Changed
+
+- Diagram Tools settings list both Mermaid CLI (`mmdc`) and `mmdr`, with install
+  guidance for each
+- Diagram Tools moved to the bottom of Settings
+- D2 and mmdr SVG previews clear the baked-in white canvas so the Markdown
+  theme shows through
+
+### Fixed
+
+- Sidebar auto-refresh no longer publishes on unchanged polls, which was making
+  nested Edit menus flicker and become unusable
+- Sidebar directory polling runs every 10 seconds and also refreshes when a tree
+  row is clicked, instead of scanning every second
+- D2 padded canvas rects and mmdr `transparent` fills are removed so SVG
+  previews stay clear under AppKit (which paints `transparent` as black)
+
 ## [0.25.0] - 2026-07-27
 
 ### Added
