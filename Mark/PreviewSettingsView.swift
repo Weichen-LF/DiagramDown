@@ -46,7 +46,7 @@ enum MermaidRendererEngine: String, CaseIterable, Hashable, Identifiable, Sendab
         let raw = UserDefaults.standard.string(
             forKey: PreviewPreferences.mermaidRendererKey
         )
-        return MermaidRendererEngine(rawValue: raw ?? "") ?? .mmdc
+        return MermaidRendererEngine(rawValue: raw ?? "") ?? .mmdr
     }
 }
 
@@ -136,7 +136,7 @@ struct PreviewSettingsView: View {
     @AppStorage(PreviewPreferences.markdownThemeKey) private var markdownTheme =
         MarkdownPreviewTheme.diagramDown.rawValue
     @AppStorage(PreviewPreferences.mermaidRendererKey) private var mermaidRenderer =
-        MermaidRendererEngine.mmdc.rawValue
+        MermaidRendererEngine.mmdr.rawValue
     @AppStorage(PreviewPreferences.mermaidLightThemeKey) private var mermaidLightTheme =
         MermaidPreviewTheme.default.rawValue
     @AppStorage(PreviewPreferences.mermaidDarkThemeKey) private var mermaidDarkTheme =
@@ -163,32 +163,6 @@ struct PreviewSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Diagram Tools") {
-                toolStatusRow(kind: .mermaid, status: mermaidToolStatus)
-                Divider()
-                toolStatusRow(kind: .mmdr, status: mmdrToolStatus)
-                Divider()
-                toolStatusRow(kind: .d2, status: d2ToolStatus)
-
-                HStack {
-                    Text("Diagram rendering uses command-line tools installed on this Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button {
-                        Task { await refreshTools() }
-                    } label: {
-                        if isRefreshingTools {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Label("Refresh", systemImage: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(isRefreshingTools)
-                }
-            }
-
             Section("Appearance") {
                 Picker("Color mode", selection: $appearance) {
                     ForEach(AppAppearance.allCases) { appearance in
@@ -295,6 +269,32 @@ struct PreviewSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(cacheStatusIsError ? .red : .secondary)
                         .textSelection(.enabled)
+                }
+            }
+
+            Section("Diagram Tools") {
+                toolStatusRow(kind: .mermaid, status: mermaidToolStatus)
+                Divider()
+                toolStatusRow(kind: .mmdr, status: mmdrToolStatus)
+                Divider()
+                toolStatusRow(kind: .d2, status: d2ToolStatus)
+
+                HStack {
+                    Text("Diagram rendering uses command-line tools installed on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        Task { await refreshTools() }
+                    } label: {
+                        if isRefreshingTools {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(isRefreshingTools)
                 }
             }
 
@@ -485,7 +485,7 @@ struct PreviewSettingsView: View {
         let d2Defaults = D2RenderConfiguration.preview
         appearance = AppAppearance.system.rawValue
         markdownTheme = MarkdownPreviewTheme.diagramDown.rawValue
-        mermaidRenderer = MermaidRendererEngine.mmdc.rawValue
+        mermaidRenderer = MermaidRendererEngine.mmdr.rawValue
         mermaidLightTheme = MermaidPreviewTheme.default.rawValue
         mermaidDarkTheme = MermaidPreviewTheme.dark.rawValue
         zoom = PreviewZoom.defaultValue

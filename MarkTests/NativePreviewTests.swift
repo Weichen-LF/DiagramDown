@@ -300,6 +300,21 @@ final class NativePreviewSafetyTests: XCTestCase {
         XCTAssertTrue(document.sanitizedXML.contains("https://example.com"))
     }
 
+    func testSVGSanitizerClearsOpaqueCanvasBackground() async throws {
+        let source = """
+        <svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80">
+          <rect x="0" y="0" width="120" height="80" fill="#FFFFFF"/>
+          <rect x="20" y="20" width="40" height="20" fill="#ECECFF" stroke="#7B88A8"/>
+        </svg>
+        """
+
+        let document = try await SVGSanitizer().sanitize(source)
+
+        XCTAssertTrue(document.sanitizedXML.contains(#"fill="none""#))
+        XCTAssertTrue(document.sanitizedXML.contains("#ECECFF"))
+        XCTAssertFalse(document.sanitizedXML.contains("#FFFFFF"))
+    }
+
     func testSVGSanitizerRejectsEntityDocumentsAndInvalidDimensions() async {
         do {
             _ = try await SVGSanitizer().sanitize(
@@ -603,8 +618,10 @@ final class NativePreviewDiagramTests: XCTestCase {
         }
         XCTAssertTrue(capturedArguments.contains("-e"))
         XCTAssertTrue(capturedArguments.contains("svg"))
+        XCTAssertTrue(capturedArguments.contains("-c"))
         XCTAssertFalse(document.sanitizedXML.localizedCaseInsensitiveContains("script"))
         XCTAssertTrue(document.sanitizedXML.contains("mmdr output"))
+        XCTAssertFalse(document.sanitizedXML.contains("#FFFFFF"))
         XCTAssertGreaterThan(document.intrinsicSize.width, 0)
         XCTAssertGreaterThan(document.intrinsicSize.height, 0)
     }
@@ -784,7 +801,7 @@ final class NativePreviewDiagramTests: XCTestCase {
           esac
         done
         [ -n "$output" ] || exit 8
-        printf '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><text>mmdr output</text></svg>' > "$output"
+        printf '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect x="0" y="0" width="120" height="60" fill="#FFFFFF"/><text>mmdr output</text></svg>' > "$output"
         """
         try script.write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(

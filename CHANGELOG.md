@@ -13,11 +13,15 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Sidebar directory tree auto-refreshes when files or folders change on disk
 - Active-line highlighting in the Markdown editor, similar to JetBrains IDEs
 - Settings option to render Mermaid with `mmdc` (PNG) or `mmdr` (SVG)
+- Mermaid renderer defaults to `mmdr`
 
 ### Changed
 
 - Diagram Tools settings list both Mermaid CLI (`mmdc`) and `mmdr`, with install
   guidance for each
+- Diagram Tools moved to the bottom of Settings
+- D2 and mmdr SVG previews clear the baked-in white canvas so the Markdown
+  theme shows through
 
 ### Fixed
 

@@ -13,7 +13,9 @@ struct NativeDiagramView: View {
     var body: some View {
         switch document {
         case .svg(let svg):
-            NativeSVGView(document: svg, background: background)
+            // SVG diagrams clear their baked-in canvas fill during sanitization;
+            // keep the SwiftUI backdrop clear so the preview theme shows through.
+            NativeSVGView(document: svg, background: .clear)
         case .raster(let raster):
             NativeRasterDiagramView(document: raster, background: background)
         }

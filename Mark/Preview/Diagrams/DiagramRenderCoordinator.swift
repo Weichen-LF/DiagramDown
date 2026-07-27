@@ -399,7 +399,7 @@ actor DiagramRenderCoordinator {
                 request.configuration.d2.cacheDescriptor,
                 request.configuration.appearance,
             ]
-            formatToken = "svg-sanitizer-v1"
+            formatToken = "svg-sanitizer-v2-transparent-canvas"
         case .mermaid:
             switch request.configuration.mermaidRenderer {
             case .mmdc:
@@ -417,7 +417,7 @@ actor DiagramRenderCoordinator {
                     tool.cacheDescriptor,
                     request.configuration.appearance,
                 ]
-                formatToken = "svg-sanitizer-v1"
+                formatToken = "svg-sanitizer-v2-transparent-canvas"
             }
         }
 

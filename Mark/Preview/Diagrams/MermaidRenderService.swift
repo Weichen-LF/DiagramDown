@@ -42,7 +42,7 @@ nonisolated enum MermaidRenderError: LocalizedError, Sendable {
 actor MermaidRenderService {
     static let shared = MermaidRenderService()
     nonisolated static let mmdcRendererVersion = "local-mmdc-png-v2"
-    nonisolated static let mmdrRendererVersion = "local-mmdr-svg-v1"
+    nonisolated static let mmdrRendererVersion = "local-mmdr-svg-v2"
     nonisolated static let pngScale = 2
 
     /// Kept for call sites that still refer to the historical mmdc cache token.
@@ -133,10 +133,14 @@ actor MermaidRenderService {
             }
             arguments = mmdcArguments
         case .mmdr:
+            let configURL = directory.appendingPathComponent("mmdr-config.json")
+            try Data(#"{"themeVariables":{"background":"transparent"}}"#.utf8)
+                .write(to: configURL, options: .atomic)
             arguments = [
                 "-i", inputURL.path,
                 "-o", outputURL.path,
                 "-e", outputExtension,
+                "-c", configURL.path,
             ]
         }
 

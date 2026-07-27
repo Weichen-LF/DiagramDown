@@ -49,6 +49,7 @@ actor SVGSanitizer {
         var elementCount = 0
         try sanitize(element: root, depth: 0, elementCount: &elementCount)
         let intrinsicSize = try size(of: root)
+        makeCanvasBackgroundTransparent(in: root, canvasSize: intrinsicSize)
         document.characterEncoding = "UTF-8"
         let xml = document.xmlString(options: [.nodeCompactEmptyElement])
         guard xml.utf8.count <= maximumBytes else {
@@ -60,6 +61,77 @@ actor SVGSanitizer {
             intrinsicSize: intrinsicSize,
             digest: MarkdownParserService.digest(xml)
         )
+    }
+
+    /// D2 and mmdr bake an opaque full-canvas rect into the SVG. Clear it so
+    /// previews show the surrounding Markdown theme instead of a white plate.
+    private func makeCanvasBackgroundTransparent(
+        in element: XMLElement,
+        canvasSize: CGSize
+    ) {
+        for child in element.children ?? [] {
+            guard let childElement = child as? XMLElement else {
+                continue
+            }
+            let name = (childElement.localName ?? childElement.name ?? "").lowercased()
+            if name == "svg" {
+                let nestedSize = (try? size(of: childElement)) ?? canvasSize
+                makeCanvasBackgroundTransparent(in: childElement, canvasSize: nestedSize)
+                continue
+            }
+            guard name == "rect",
+                  isCanvasBackgroundRect(childElement, canvasSize: canvasSize) else {
+                continue
+            }
+            if let existing = childElement.attribute(forName: "fill") {
+                existing.stringValue = "none"
+            } else if let attribute = XMLNode.attribute(
+                withName: "fill",
+                stringValue: "none"
+            ) as? XMLNode {
+                childElement.addAttribute(attribute)
+            }
+            // Only clear the first canvas-sized background in each SVG container.
+            return
+        }
+    }
+
+    private func isCanvasBackgroundRect(
+        _ element: XMLElement,
+        canvasSize: CGSize
+    ) -> Bool {
+        guard let width = numericValue(element.attribute(forName: "width")?.stringValue),
+              let height = numericValue(element.attribute(forName: "height")?.stringValue),
+              width >= canvasSize.width * 0.95,
+              height >= canvasSize.height * 0.95 else {
+            return false
+        }
+
+        let x = numericValue(element.attribute(forName: "x")?.stringValue) ?? 0
+        let y = numericValue(element.attribute(forName: "y")?.stringValue) ?? 0
+        // Allow a small pad offset (D2 uses -1,-1).
+        guard abs(x) <= max(canvasSize.width * 0.05, 2),
+              abs(y) <= max(canvasSize.height * 0.05, 2) else {
+            return false
+        }
+
+        let strokeWidth = numericValue(
+            element.attribute(forName: "stroke-width")?.stringValue
+        ) ?? 0
+        guard strokeWidth == 0 else {
+            return false
+        }
+
+        let fill = (element.attribute(forName: "fill")?.stringValue ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if fill.isEmpty || fill == "none" || fill == "transparent" {
+            return false
+        }
+        if fill.hasPrefix("url(") {
+            return false
+        }
+        return true
     }
 
     private func sanitize(

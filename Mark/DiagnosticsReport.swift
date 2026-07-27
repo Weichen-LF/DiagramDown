@@ -79,7 +79,7 @@ struct DiagnosticsPreferences: Equatable, Sendable {
             mermaidRenderer: validatedRawValue(
                 defaults.string(forKey: PreviewPreferences.mermaidRendererKey),
                 as: MermaidRendererEngine.self,
-                fallback: .mmdc
+                fallback: .mmdr
             ),
             mermaidLightTheme: validatedRawValue(
                 defaults.string(forKey: PreviewPreferences.mermaidLightThemeKey),
