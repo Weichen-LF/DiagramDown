@@ -54,6 +54,12 @@ final class WorkspaceModelTests: XCTestCase {
         let root = URL(fileURLWithPath: "/tmp/project")
         let firstID = UUID()
         let secondID = UUID()
+        let windowFrame = WorkspaceWindowFrame(
+            x: 120,
+            y: 80,
+            width: 1_280,
+            height: 820
+        )
         let snapshot = WorkspaceRecoverySnapshot(
             workspaceID: UUID(),
             openFiles: [
@@ -78,6 +84,8 @@ final class WorkspaceModelTests: XCTestCase {
             ],
             activeFileID: firstID,
             sidebarVisible: false,
+            sidebarWidth: 318,
+            windowFrame: windowFrame,
             expandedDirectoryIDs: ["docs"]
         )
 
@@ -91,6 +99,8 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(session.activeFile?.editorPreviewSession.editorScrollPosition.sourceLine, 18)
         XCTAssertEqual(session.activeFile?.editorPreviewSession.editorScrollPosition.progress, 0.4)
         XCTAssertFalse(session.sidebarVisible)
+        XCTAssertEqual(session.sidebarWidth, 318)
+        XCTAssertEqual(session.restoredWindowFrame, windowFrame)
         XCTAssertEqual(session.expandedDirectoryIDs, ["docs"])
     }
 
@@ -322,6 +332,115 @@ final class WorkspaceModelTests: XCTestCase {
         }
     }
 
+    func testFileServiceCreatesRenamesMovesAndDeletesWorkspaceItems() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = WorkspaceFileService()
+
+        let docs = try await service.createItem(
+            named: "docs",
+            kind: .directory,
+            in: root,
+            within: root
+        )
+        let draft = try await service.createItem(
+            named: "Draft",
+            kind: .markdownFile,
+            in: root,
+            within: root
+        )
+        XCTAssertEqual(draft.lastPathComponent, "Draft.md")
+
+        let renamed = try await service.renameItem(
+            at: draft,
+            to: "Guide.markdown",
+            within: root
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: draft.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: renamed.path))
+
+        let moved = try await service.moveItem(at: renamed, into: docs, within: root)
+        XCTAssertEqual(moved.lastPathComponent, "Guide.markdown")
+        XCTAssertEqual(moved.deletingLastPathComponent(), docs)
+
+        let textFile = root.appendingPathComponent("notes.txt")
+        try Data("notes".utf8).write(to: textFile)
+        let renamedTextFile = try await service.renameItem(
+            at: textFile,
+            to: "archive.txt",
+            within: root
+        )
+        XCTAssertEqual(renamedTextFile.lastPathComponent, "archive.txt")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: renamedTextFile.path))
+
+        try await service.deleteItem(at: moved, within: root)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: moved.path))
+    }
+
+    func testCleanBufferReloadsWhenFileChangesExternally() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("original".utf8).write(to: fileURL)
+        let session = WorkspaceSession(rootURL: root)
+        let buffer = session.openFile(url: fileURL, text: "original")
+
+        try Data("changed outside".utf8).write(to: fileURL)
+        await session.checkForExternalChanges()
+
+        XCTAssertEqual(buffer.text, "changed outside")
+        XCTAssertFalse(buffer.isDirty)
+        XCTAssertNil(buffer.externalConflict)
+    }
+
+    func testDirtyBufferRequiresExplicitConflictResolution() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("original".utf8).write(to: fileURL)
+        let session = WorkspaceSession(rootURL: root)
+        let buffer = session.openFile(url: fileURL, text: "original")
+        buffer.text = "editor change"
+
+        try Data("disk change".utf8).write(to: fileURL)
+        await session.checkForExternalChanges()
+
+        XCTAssertEqual(buffer.externalConflict, .modified)
+        let savedWithoutResolution = await session.saveActiveFile()
+        XCTAssertFalse(savedWithoutResolution)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "disk change")
+        let overwritten = await session.overwriteFile(id: buffer.id)
+        XCTAssertTrue(overwritten)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "editor change")
+        XCTAssertNil(buffer.externalConflict)
+    }
+
+    func testDeletedFileKeepsEditorCopyUntilUserResolvesConflict() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fileURL = root.appendingPathComponent("README.md")
+        try Data("original".utf8).write(to: fileURL)
+        let session = WorkspaceSession(rootURL: root)
+        let buffer = session.openFile(url: fileURL, text: "original")
+
+        try FileManager.default.removeItem(at: fileURL)
+        await session.checkForExternalChanges()
+
+        XCTAssertEqual(buffer.externalConflict, .deleted)
+        XCTAssertEqual(buffer.text, "original")
+        let recreated = await session.overwriteFile(id: buffer.id)
+        XCTAssertTrue(recreated)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "original")
+    }
+
     func testSavingActiveBufferUpdatesDiskAndDirtyState() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -423,6 +542,13 @@ final class WorkspaceRecoveryStoreTests: XCTestCase {
             ],
             activeFileID: nil,
             sidebarVisible: true,
+            sidebarWidth: 304,
+            windowFrame: WorkspaceWindowFrame(
+                x: 40,
+                y: 60,
+                width: 1_100,
+                height: 760
+            ),
             expandedDirectoryIDs: ["docs"]
         )
 
@@ -436,7 +562,24 @@ final class WorkspaceRecoveryStoreTests: XCTestCase {
     }
 }
 
+@MainActor
 final class WorkspaceLaunchRestorationTests: XCTestCase {
+    private final class MemoryStorage: WorkspaceLaunchStorage {
+        private var values: [String: Any] = [:]
+
+        func data(forKey defaultName: String) -> Data? {
+            values[defaultName] as? Data
+        }
+
+        func set(_ value: Any?, forKey defaultName: String) {
+            values[defaultName] = value
+        }
+
+        func removeObject(forKey defaultName: String) {
+            values.removeValue(forKey: defaultName)
+        }
+    }
+
     func testLastWorkspaceReferencePersistsAndIsClaimedOnlyOncePerLaunch() throws {
         let reference = WorkspaceReference(
             id: UUID(),
@@ -458,6 +601,80 @@ final class WorkspaceLaunchRestorationTests: XCTestCase {
         XCTAssertNil(invalidState.takeReference(from: Data("invalid".utf8)))
         XCTAssertNil(invalidState.takeReference(from: nil))
     }
+
+    func testRecentWorkspacesAreDeduplicatedPersistedAndClearable() {
+        let storageKey = "last"
+        let recentStorageKey = "recent"
+        let defaults = MemoryStorage()
+        let first = WorkspaceReference(id: UUID(), bookmarkData: Data("first".utf8))
+        let second = WorkspaceReference(id: UUID(), bookmarkData: Data("second".utf8))
+        let resolvedURLs = [
+            first.id: URL(fileURLWithPath: "/tmp/first"),
+            second.id: URL(fileURLWithPath: "/tmp/second"),
+        ]
+        let restoration = WorkspaceLaunchRestoration(
+            defaults: defaults,
+            storageKey: storageKey,
+            recentStorageKey: recentStorageKey,
+            resolveReferenceURL: { resolvedURLs[$0.id] }
+        )
+
+        restoration.remember(first)
+        restoration.remember(second)
+        restoration.remember(first)
+
+        XCTAssertEqual(restoration.recentWorkspaces.map(\.id), [first.id, second.id])
+        let restored = WorkspaceLaunchRestoration(
+            defaults: defaults,
+            storageKey: storageKey,
+            recentStorageKey: recentStorageKey,
+            resolveReferenceURL: { resolvedURLs[$0.id] }
+        )
+        XCTAssertEqual(restored.recentWorkspaces.map(\.id), [first.id, second.id])
+        restored.clearRecentWorkspaces()
+        XCTAssertTrue(restored.recentWorkspaces.isEmpty)
+        XCTAssertNil(defaults.data(forKey: recentStorageKey))
+    }
+}
+
+final class MarkdownEditTransformerTests: XCTestCase {
+    func testInlineActionsWrapSelectionAndSelectEditableContent() {
+        let bold = MarkdownEditTransformer.apply(
+            .bold,
+            to: "Make this bold",
+            selection: NSRange(location: 10, length: 4)
+        )
+        XCTAssertEqual(bold.text, "Make this **bold**")
+        XCTAssertEqual(bold.selection, NSRange(location: 12, length: 4))
+
+        let link = MarkdownEditTransformer.apply(
+            .link,
+            to: "DiagramDown",
+            selection: NSRange(location: 0, length: 11)
+        )
+        XCTAssertEqual(link.text, "[DiagramDown](https://)")
+        XCTAssertEqual(
+            (link.text as NSString).substring(with: link.selection),
+            "https://"
+        )
+    }
+
+    func testBlockActionsInsertListsAndTables() {
+        let list = MarkdownEditTransformer.apply(
+            .taskList,
+            to: "first\nsecond",
+            selection: NSRange(location: 0, length: 12)
+        )
+        XCTAssertEqual(list.text, "- [ ] first\n- [ ] second")
+
+        let table = MarkdownEditTransformer.apply(
+            .table,
+            to: "",
+            selection: NSRange(location: 0, length: 0)
+        )
+        XCTAssertTrue(table.text.contains("| Column 1 | Column 2 |"))
+        XCTAssertTrue(table.text.contains("| --- | --- |"))
+    }
 }
 
 final class MarkdownFileCodecTests: XCTestCase {
@@ -478,15 +695,6 @@ final class MarkdownFileCodecTests: XCTestCase {
 }
 
 final class OnboardingTests: XCTestCase {
-    func testBundledExampleExercisesMarkdownAndBothDiagramRenderers() throws {
-        let source = try ExampleDocument.source()
-
-        XCTAssertTrue(source.contains("# Welcome to DiagramDown"))
-        XCTAssertTrue(source.contains("```mermaid"))
-        XCTAssertTrue(source.contains("```d2"))
-        XCTAssertTrue(source.contains("## Export"))
-    }
-
     func testHelpLinksUseSecureProjectURLs() {
         let links = [
             DiagramDownLinks.project,
@@ -894,33 +1102,6 @@ final class LocalDiagramCLIRenderTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
-    }
-}
-
-final class PDFExportServiceTests: XCTestCase {
-    func testPaginationProducesMultipleNonEmptyA4Pages() throws {
-        var sourceBounds = CGRect(x: 0, y: 0, width: 400, height: 1_600)
-        let sourceData = NSMutableData()
-        let consumer = try XCTUnwrap(CGDataConsumer(data: sourceData as CFMutableData))
-        let context = try XCTUnwrap(CGContext(consumer: consumer, mediaBox: &sourceBounds, nil))
-        context.beginPDFPage(nil)
-        context.setFillColor(CGColor(red: 0.2, green: 0.3, blue: 0.9, alpha: 1))
-        context.fill(CGRect(x: 20, y: 20, width: 360, height: 1_560))
-        context.endPDFPage()
-        context.closePDF()
-
-        let result = try PDFExportService.paginate(sourceData as Data)
-        try PDFExportService.validate(result)
-        let provider = try XCTUnwrap(CGDataProvider(data: result as CFData))
-        let document = try XCTUnwrap(CGPDFDocument(provider))
-
-        XCTAssertGreaterThan(document.numberOfPages, 1)
-        XCTAssertGreaterThan(result.count, 1_000)
-        XCTAssertEqual(document.page(at: 1)?.getBoxRect(.mediaBox).width ?? 0, 595.28, accuracy: 0.1)
-    }
-
-    func testInvalidPDFIsRejected() {
-        XCTAssertThrowsError(try PDFExportService.validate(Data("not a pdf".utf8)))
     }
 }
 

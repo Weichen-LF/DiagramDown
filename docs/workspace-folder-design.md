@@ -3,9 +3,10 @@
 > Implementation status: the `0.21.0` workspace MVP is complete. For `0.22.0`,
 > DiagramDown uses one folder-workspace scene exclusively; the earlier `DocumentGroup`
 > compatibility path described in the historical sections below has been removed.
-> Workspace tab, active-file, tree, layout, scroll, and unsaved-text recovery are also
-> implemented. External-change handling, file operations, Quick Open, and search
-> remain follow-up work.
+> Workspace tab, active-file, tree, layout, scroll, window/sidebar geometry, and
+> unsaved-text recovery are implemented. The workspace also detects external
+> file changes, supports create/rename/move/delete operations, and maintains an
+> Open Recent list. Quick Open and workspace-wide search remain follow-up work.
 >
 > Sandbox-specific bookmark and entitlement discussion is historical. The current
 > direct-distribution build intentionally disables App Sandbox so it can execute

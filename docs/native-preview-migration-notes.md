@@ -14,13 +14,15 @@ This file records implementation choices and measured verification for
   grammar versions
 - optional user-installed `mmdc` and `d2` renderers with safe code-block
   fallback when a tool is unavailable
-- SVG sanitation, native SVG display, viewer, and atomic SVG export
+- Mermaid PNG preview with raw on-demand SVG export, plus D2 SVG sanitation,
+  native diagram display, viewer, and atomic SVG export
 - native PDF snapshot and AppKit print pipeline
 - bounded memory and disk caching for sanitized diagram output, including
   explicit cache statistics and memory-pressure purging
 - native Markdown formatting through `swift-markdown`, with fenced source
   preserved except for local D2 CLI formatting
-- workspace-root-confined local image loading in preview and PDF export
+- document-relative, absolute-path, and `file://` local image loading in preview
+  and PDF export, with remote images disabled
 - removal of WebKit, JavaScriptCore, Prettier, markdown-it, highlight.js,
   preview HTML/CSS/JS, DOM export, D2 Web bridge, and JavaScript scroll
   synchronization
@@ -48,9 +50,8 @@ Grammar versions are part of the highlighter cache key.
 ## Verification record
 
 - macOS XCTest: passed after switching completely to the native preview,
-  including fake local CLI rendering followed by SVG sanitation, all
-  first-batch Tree-sitter grammars, versioned diagram caches, confined local
-  images, and PDF image snapshots.
+  including fake local CLI rendering, all first-batch Tree-sitter grammars,
+  versioned diagram caches, local images, and PDF image snapshots.
 - Debug app resource inspection confirmed all first-batch grammar query bundles
   and package licenses are present; no WebKit, JavaScriptCore, Prettier, or
   bundled diagram runtime remains.

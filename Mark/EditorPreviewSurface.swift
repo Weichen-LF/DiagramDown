@@ -154,6 +154,14 @@ struct EditorPreviewSurface: View {
                     ? nil
                     : FormatDocumentAction(perform: session.editorController.formatDocument)
             )
+            .focusedSceneValue(
+                \.markdownEditMenuAction,
+                activeViewMode == .previewOnly
+                    ? nil
+                    : MarkdownEditMenuAction(
+                        perform: session.editorController.perform
+                    )
+            )
     }
 
     @ViewBuilder
@@ -183,7 +191,7 @@ struct EditorPreviewSurface: View {
     }
 
     private var previewPane: some View {
-        MarkdownPreviewView(
+        NativeMarkdownPreviewView(
             markdown: text,
             configuration: previewConfiguration,
             zoom: PreviewZoom.clamped(previewZoom),

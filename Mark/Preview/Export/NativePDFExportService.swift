@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 struct PreviewExportSnapshot {
     let document: PreviewDocument
     let resolvedCodeBlocks: [PreviewBlockID: AttributedString]
-    let resolvedDiagrams: [PreviewBlockID: SVGDocument]
+    let resolvedDiagrams: [PreviewBlockID: DiagramDocument]
     let diagramCodeFallbacks: [PreviewBlockID: AttributedString]
     let diagramErrors: [PreviewBlockID: String]
     let resolvedImages: [PreviewBlockID: NSImage]
@@ -75,7 +75,7 @@ enum NativePDFExportService {
         workspaceRootURL: URL
     ) async throws -> PreviewExportSnapshot {
         var codeBlocks: [PreviewBlockID: AttributedString] = [:]
-        var diagrams: [PreviewBlockID: SVGDocument] = [:]
+        var diagrams: [PreviewBlockID: DiagramDocument] = [:]
         var diagramCodeFallbacks: [PreviewBlockID: AttributedString] = [:]
         var diagramErrors: [PreviewBlockID: String] = [:]
         var images: [PreviewBlockID: NSImage] = [:]
@@ -260,13 +260,7 @@ private struct PrintablePreviewBlockView: View {
         switch block.content {
         case .heading(let level, let inline):
             VStack(alignment: .leading, spacing: 4) {
-                inlineText(inline)
-                    .font(
-                        .system(
-                            size: metrics.headingFontSize(level: level),
-                            weight: level <= 2 ? .bold : .semibold
-                        )
-                    )
+                inlineText(inline, baseFont: metrics.headingFont(level: level))
                 if level <= 2 {
                     Divider().overlay(theme.border)
                 }
@@ -294,7 +288,7 @@ private struct PrintablePreviewBlockView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
         case .mermaid, .d2:
             if let diagram = snapshot.resolvedDiagrams[block.id] {
-                NativeSVGView(
+                NativeDiagramView(
                     document: diagram,
                     background: theme.background
                 )
@@ -335,12 +329,16 @@ private struct PrintablePreviewBlockView: View {
         }
     }
 
-    private func inlineText(_ content: PreviewInlineContent) -> Text {
+    private func inlineText(
+        _ content: PreviewInlineContent,
+        baseFont: Font? = nil
+    ) -> Text {
         Text(
             InlineAttributedStringBuilder().build(
                 content,
                 theme: theme,
-                metrics: metrics
+                metrics: metrics,
+                baseFont: baseFont
             )
         )
     }
@@ -388,13 +386,13 @@ private struct PrintablePreviewBlockView: View {
             ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
                 GridRow {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                        inlineText(cell)
-                            .font(
-                                .system(
-                                    size: metrics.bodyFontSize,
-                                    weight: rowIndex == 0 ? .semibold : .regular
-                                )
+                        inlineText(
+                            cell,
+                            baseFont: .system(
+                                size: metrics.bodyFontSize,
+                                weight: rowIndex == 0 ? .semibold : .regular
                             )
+                        )
                             .padding(6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(

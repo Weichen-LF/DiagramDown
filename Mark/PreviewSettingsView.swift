@@ -73,7 +73,6 @@ enum MermaidPreviewTheme: String, CaseIterable, Hashable, Identifiable, Sendable
     case neutral
     case forest
     case dark
-    case base
 
     nonisolated var id: String { rawValue }
 
@@ -87,8 +86,6 @@ enum MermaidPreviewTheme: String, CaseIterable, Hashable, Identifiable, Sendable
             "Forest"
         case .dark:
             "Dark"
-        case .base:
-            "Base"
         }
     }
 }
@@ -124,6 +121,10 @@ struct PreviewSettingsView: View {
     @State private var mermaidToolStatus = DiagramToolStatus.missing
     @State private var d2ToolStatus = DiagramToolStatus.missing
     @State private var isRefreshingTools = false
+    @State private var isClearingCaches = false
+    @State private var showsClearCachesConfirmation = false
+    @State private var cacheStatusMessage: String?
+    @State private var cacheStatusIsError = false
 
     var body: some View {
         Form {
@@ -215,6 +216,36 @@ struct PreviewSettingsView: View {
                 Toggle("Sketch style", isOn: $d2Sketch)
             }
 
+            Section("Caches") {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Preview caches")
+                        Text("Clear syntax highlighting and rendered diagram caches.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(role: .destructive) {
+                        showsClearCachesConfirmation = true
+                    } label: {
+                        if isClearingCaches {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Clear All Caches…")
+                        }
+                    }
+                    .disabled(isClearingCaches)
+                }
+
+                if let cacheStatusMessage {
+                    Text(cacheStatusMessage)
+                        .font(.caption)
+                        .foregroundStyle(cacheStatusIsError ? .red : .secondary)
+                        .textSelection(.enabled)
+                }
+            }
+
             Section {
                 HStack {
                     Text("Changes apply to every open document.")
@@ -228,6 +259,18 @@ struct PreviewSettingsView: View {
         .frame(width: 560, height: 820)
         .task {
             await refreshTools()
+        }
+        .confirmationDialog(
+            "Clear all preview caches?",
+            isPresented: $showsClearCachesConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Clear All Caches", role: .destructive) {
+                Task { await clearAllCaches() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Cached syntax highlighting and rendered diagram files will be removed. They will be regenerated when needed.")
         }
     }
 
@@ -325,6 +368,27 @@ struct PreviewSettingsView: View {
         mermaidToolStatus = statuses[.mermaid] ?? .missing
         d2ToolStatus = statuses[.d2] ?? .missing
         isRefreshingTools = false
+    }
+
+    @MainActor
+    private func clearAllCaches() async {
+        isClearingCaches = true
+        cacheStatusMessage = nil
+        cacheStatusIsError = false
+        defer { isClearingCaches = false }
+
+        do {
+            try await PreviewCacheController.purgeAll()
+            let defaults = UserDefaults.standard
+            defaults.set(
+                defaults.integer(forKey: DiagramToolRegistry.revisionPreferenceKey) &+ 1,
+                forKey: DiagramToolRegistry.revisionPreferenceKey
+            )
+            cacheStatusMessage = "All preview caches were cleared."
+        } catch {
+            cacheStatusIsError = true
+            cacheStatusMessage = "Some caches could not be cleared: \(error.localizedDescription)"
+        }
     }
 
     private func chooseExecutable(for kind: DiagramToolKind) {

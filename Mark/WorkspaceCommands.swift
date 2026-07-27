@@ -8,6 +8,8 @@ import SwiftUI
 
 struct WorkspaceCommands: Commands {
     @FocusedValue(\.workspaceOpenFolderAction) private var openFolder
+    @FocusedValue(\.workspaceOpenReferenceAction) private var openReference
+    @ObservedObject private var restoration = WorkspaceLaunchRestoration.shared
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -16,6 +18,24 @@ struct WorkspaceCommands: Commands {
             }
             .keyboardShortcut("o", modifiers: .command)
             .disabled(openFolder == nil)
+
+            Menu("Open Recent") {
+                if restoration.recentWorkspaces.isEmpty {
+                    Text("No Recent Folders")
+                } else {
+                    ForEach(restoration.recentWorkspaces) { recent in
+                        Button(recent.displayName) {
+                            openReference?(recent.reference)
+                        }
+                        .help(recent.displayName)
+                    }
+                    Divider()
+                    Button("Clear Menu") {
+                        restoration.clearRecentWorkspaces()
+                    }
+                }
+            }
+            .disabled(openReference == nil)
         }
     }
 }
@@ -54,11 +74,31 @@ struct WorkspaceOpenFolderAction {
     }
 }
 
+struct WorkspaceOpenReferenceAction {
+    let perform: (WorkspaceReference) -> Void
+
+    func callAsFunction(_ reference: WorkspaceReference) {
+        perform(reference)
+    }
+}
+
 private struct WorkspaceOpenFolderActionKey: FocusedValueKey {
     typealias Value = WorkspaceOpenFolderAction
 }
 
+private struct WorkspaceOpenReferenceActionKey: FocusedValueKey {
+    typealias Value = WorkspaceOpenReferenceAction
+}
+
 struct WorkspaceSaveAction {
+    let perform: () -> Void
+
+    func callAsFunction() {
+        perform()
+    }
+}
+
+struct WorkspaceCloseFileAction {
     let perform: () -> Void
 
     func callAsFunction() {
@@ -70,20 +110,35 @@ private struct WorkspaceSaveActionKey: FocusedValueKey {
     typealias Value = WorkspaceSaveAction
 }
 
+private struct WorkspaceCloseFileActionKey: FocusedValueKey {
+    typealias Value = WorkspaceCloseFileAction
+}
+
 extension FocusedValues {
     var workspaceOpenFolderAction: WorkspaceOpenFolderAction? {
         get { self[WorkspaceOpenFolderActionKey.self] }
         set { self[WorkspaceOpenFolderActionKey.self] = newValue }
     }
 
+    var workspaceOpenReferenceAction: WorkspaceOpenReferenceAction? {
+        get { self[WorkspaceOpenReferenceActionKey.self] }
+        set { self[WorkspaceOpenReferenceActionKey.self] = newValue }
+    }
+
     var workspaceSaveAction: WorkspaceSaveAction? {
         get { self[WorkspaceSaveActionKey.self] }
         set { self[WorkspaceSaveActionKey.self] = newValue }
+    }
+
+    var workspaceCloseFileAction: WorkspaceCloseFileAction? {
+        get { self[WorkspaceCloseFileActionKey.self] }
+        set { self[WorkspaceCloseFileActionKey.self] = newValue }
     }
 }
 
 struct WorkspaceSaveCommands: Commands {
     @FocusedValue(\.workspaceSaveAction) private var save
+    @FocusedValue(\.workspaceCloseFileAction) private var closeFile
 
     var body: some Commands {
         CommandGroup(replacing: .saveItem) {
@@ -92,6 +147,14 @@ struct WorkspaceSaveCommands: Commands {
             }
             .keyboardShortcut("s", modifiers: .command)
             .disabled(save == nil)
+        }
+
+        CommandGroup(after: .saveItem) {
+            Button("Close File") {
+                closeFile?()
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            .disabled(closeFile == nil)
         }
     }
 }

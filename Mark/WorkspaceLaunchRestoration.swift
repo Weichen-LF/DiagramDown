@@ -3,7 +3,16 @@
 //  DiagramDown
 //
 
+import Combine
 import Foundation
+
+protocol WorkspaceLaunchStorage: AnyObject {
+    func data(forKey defaultName: String) -> Data?
+    func set(_ value: Any?, forKey defaultName: String)
+    func removeObject(forKey defaultName: String)
+}
+
+extension UserDefaults: WorkspaceLaunchStorage {}
 
 nonisolated struct WorkspaceLaunchState {
     private(set) var didAttemptRestoration = false
@@ -21,19 +30,31 @@ nonisolated struct WorkspaceLaunchState {
 }
 
 @MainActor
-final class WorkspaceLaunchRestoration {
+final class WorkspaceLaunchRestoration: ObservableObject {
     static let shared = WorkspaceLaunchRestoration()
 
-    private let defaults: UserDefaults
+    private let defaults: any WorkspaceLaunchStorage
     private let storageKey: String
+    private let recentStorageKey: String
+    private let resolveReferenceURL: (WorkspaceReference) -> URL?
     private var state = WorkspaceLaunchState()
+    @Published private(set) var recentWorkspaces: [RecentWorkspace] = []
 
     init(
-        defaults: UserDefaults = .standard,
-        storageKey: String = "Workspace.lastReference"
+        defaults: any WorkspaceLaunchStorage = UserDefaults.standard,
+        storageKey: String = "Workspace.lastReference",
+        recentStorageKey: String? = nil,
+        resolveReferenceURL: @escaping (WorkspaceReference) -> URL? =
+            WorkspaceLaunchRestoration.systemResolvedURL
     ) {
         self.defaults = defaults
         self.storageKey = storageKey
+        self.recentStorageKey = recentStorageKey ?? "\(storageKey).recent"
+        self.resolveReferenceURL = resolveReferenceURL
+        if let data = defaults.data(forKey: self.recentStorageKey),
+           let decoded = try? JSONDecoder().decode([RecentWorkspace].self, from: data) {
+            recentWorkspaces = Array(decoded.prefix(10))
+        }
     }
 
     func remember(_ reference: WorkspaceReference) {
@@ -41,9 +62,63 @@ final class WorkspaceLaunchRestoration {
             return
         }
         defaults.set(encoded, forKey: storageKey)
+        let resolvedReferenceURL = resolveReferenceURL(reference)?.standardizedFileURL
+        let displayName = resolvedReferenceURL?.lastPathComponent ?? "Folder"
+        recentWorkspaces.removeAll { recent in
+            if recent.reference.id == reference.id {
+                return true
+            }
+            guard let resolvedReferenceURL else {
+                return false
+            }
+            return resolveReferenceURL(recent.reference)?.standardizedFileURL
+                == resolvedReferenceURL
+        }
+        recentWorkspaces.insert(
+            RecentWorkspace(
+                reference: reference,
+                displayName: displayName,
+                lastOpenedAt: Date()
+            ),
+            at: 0
+        )
+        recentWorkspaces = Array(recentWorkspaces.prefix(10))
+        persistRecents()
     }
 
     func takeReferenceForLaunch() -> WorkspaceReference? {
         state.takeReference(from: defaults.data(forKey: storageKey))
     }
+
+    func clearRecentWorkspaces() {
+        recentWorkspaces = []
+        defaults.removeObject(forKey: recentStorageKey)
+    }
+
+    nonisolated private static func systemResolvedURL(
+        for reference: WorkspaceReference
+    ) -> URL? {
+        var isStale = false
+        return try? URL(
+            resolvingBookmarkData: reference.bookmarkData,
+            options: [.withSecurityScope, .withoutUI],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        )
+    }
+
+    private func persistRecents() {
+        guard let data = try? JSONEncoder().encode(recentWorkspaces) else {
+            return
+        }
+        defaults.set(data, forKey: recentStorageKey)
+    }
+}
+
+nonisolated struct RecentWorkspace: Codable, Equatable, Identifiable, Sendable {
+    let reference: WorkspaceReference
+    let displayName: String
+    let lastOpenedAt: Date
+
+    var id: UUID { reference.id }
 }

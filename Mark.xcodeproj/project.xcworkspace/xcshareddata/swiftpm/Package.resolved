@@ -1,5 +1,5 @@
 {
-  "originHash" : "fc5a10dd801729897ca73928c34c15649176dd32fa5d235cc8c8de4ec136e144",
+  "originHash" : "cc7e1a60176b5f93dce7cb99c5712eb1e97dd30f4e8a9466a1d379e6206dc03d",
   "pins" : [
     {
       "identity" : "swift-cmark",
@@ -47,6 +47,24 @@
       }
     },
     {
+      "identity" : "tree-sitter-dockerfile",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/camdencheek/tree-sitter-dockerfile.git",
+      "state" : {
+        "revision" : "868e44ce378deb68aac902a9db68ff82d2299dd0",
+        "version" : "0.2.0"
+      }
+    },
+    {
+      "identity" : "tree-sitter-go",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tree-sitter/tree-sitter-go.git",
+      "state" : {
+        "revision" : "1547678a9da59885853f5f5cc8a99cc203fa2e2c",
+        "version" : "0.25.0"
+      }
+    },
+    {
       "identity" : "tree-sitter-javascript",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tree-sitter/tree-sitter-javascript.git",
@@ -71,6 +89,24 @@
       "state" : {
         "revision" : "534c461d2b75b0887ec968ef9635f4460b0878b7",
         "version" : "0.3.0"
+      }
+    },
+    {
+      "identity" : "tree-sitter-python",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tree-sitter/tree-sitter-python.git",
+      "state" : {
+        "revision" : "bffb65a8cfe4e46290331dfef0dbf0ef3679de11",
+        "version" : "0.23.6"
+      }
+    },
+    {
+      "identity" : "tree-sitter-sql-bigquery",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/takegue/tree-sitter-sql-bigquery.git",
+      "state" : {
+        "revision" : "eb53d2486b353f8a3d5f69833b2ae749b4862ba5",
+        "version" : "0.8.0"
       }
     },
     {

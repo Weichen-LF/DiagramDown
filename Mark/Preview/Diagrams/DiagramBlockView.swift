@@ -10,11 +10,11 @@ import UniformTypeIdentifiers
 private enum DiagramBlockState {
     case idle
     case rendering
-    case rendered(SVGDocument)
+    case rendered(DiagramDocument)
     case unavailable
     case failed(message: String)
 
-    var document: SVGDocument? {
+    var document: DiagramDocument? {
         guard case .rendered(let document) = self else { return nil }
         return document
     }
@@ -101,7 +101,7 @@ struct DiagramBlockView: View {
                 .frame(minHeight: 100 * metrics.zoom)
 
         case .rendered(let document):
-            NativeSVGView(
+            NativeDiagramView(
                 document: document,
                 background: theme.background
             )
@@ -146,20 +146,7 @@ struct DiagramBlockView: View {
     @MainActor
     private func render() async {
         state = .rendering
-        let dark = theme.id.hasSuffix("-dark")
-        let request = DiagramRenderRequest(
-            blockID: blockID,
-            revision: revision,
-            kind: kind,
-            source: source,
-            configuration: DiagramConfiguration(
-                mermaidTheme: dark
-                    ? configuration.mermaidDarkTheme
-                    : configuration.mermaidLightTheme,
-                appearance: dark ? "dark" : "light",
-                d2: configuration.d2
-            )
-        )
+        let request = diagramRequest
 
         do {
             let result = try await DiagramRenderCoordinator.shared.render(request)
@@ -177,8 +164,25 @@ struct DiagramBlockView: View {
         }
     }
 
+    private var diagramRequest: DiagramRenderRequest {
+        let dark = theme.id.hasSuffix("-dark")
+        return DiagramRenderRequest(
+            blockID: blockID,
+            revision: revision,
+            kind: kind,
+            source: source,
+            configuration: DiagramConfiguration(
+                mermaidTheme: dark
+                    ? configuration.mermaidDarkTheme
+                    : configuration.mermaidLightTheme,
+                appearance: dark ? "dark" : "light",
+                d2: configuration.d2
+            )
+        )
+    }
+
     @MainActor
-    private func export(_ document: SVGDocument) {
+    private func export(_ document: DiagramDocument) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.svg]
         panel.canCreateDirectories = true
@@ -189,14 +193,8 @@ struct DiagramBlockView: View {
             guard response == .OK, let url = panel.url else {
                 return
             }
-            do {
-                try Data(document.sanitizedXML.utf8).write(
-                    to: url,
-                    options: .atomic
-                )
-            } catch {
-                let alert = NSAlert(error: error)
-                alert.runModal()
+            Task { @MainActor in
+                await writeSVGExport(document, to: url)
             }
         }
 
@@ -204,6 +202,28 @@ struct DiagramBlockView: View {
             panel.beginSheetModal(for: window, completionHandler: save)
         } else {
             save(panel.runModal())
+        }
+    }
+
+    @MainActor
+    private func writeSVGExport(_ document: DiagramDocument, to url: URL) async {
+        do {
+            let svg: String
+            switch kind {
+            case .mermaid:
+                svg = try await DiagramRenderCoordinator.shared.renderMermaidSVG(
+                    diagramRequest
+                )
+            case .d2:
+                guard case .svg(let svgDocument) = document else {
+                    throw DiagramRasterError.invalidImage
+                }
+                svg = svgDocument.sanitizedXML
+            }
+            try Data(svg.utf8).write(to: url, options: .atomic)
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.runModal()
         }
     }
 
@@ -218,7 +238,7 @@ struct DiagramBlockView: View {
 }
 
 private struct DiagramViewerView: View {
-    let document: SVGDocument
+    let document: DiagramDocument
     let title: String
     let theme: PreviewTheme
 
@@ -245,7 +265,7 @@ private struct DiagramViewerView: View {
             Divider()
 
             ScrollView([.horizontal, .vertical]) {
-                NativeSVGView(
+                NativeDiagramView(
                     document: document,
                     background: theme.background
                 )

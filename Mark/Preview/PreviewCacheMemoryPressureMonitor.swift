@@ -10,6 +10,13 @@ nonisolated struct PreviewCacheStatistics: Equatable, Sendable {
     let estimatedBytes: Int
 }
 
+nonisolated enum PreviewCacheController {
+    static func purgeAll() async throws {
+        await TreeSitterCodeHighlighter.shared.purgeCaches()
+        try await DiagramRenderCoordinator.shared.purgeAllCaches()
+    }
+}
+
 @MainActor
 final class PreviewCacheMemoryPressureMonitor {
     static let shared = PreviewCacheMemoryPressureMonitor()

@@ -6,6 +6,38 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-07-26
+
+### Added
+
+- A Settings action that clears syntax-highlighting caches and all rendered
+  Mermaid/D2 memory and disk caches
+- Local Markdown images from document-relative paths, absolute paths, and
+  `file://` URLs, including PNG, JPEG, GIF, TIFF, BMP, HEIC, WebP, and SVG
+- External file-change and deletion detection with automatic clean-buffer
+  reloads and explicit conflict resolution for unsaved edits
+- Sidebar actions to create Markdown files and folders, rename or move workspace
+  items, and delete them with confirmation
+- Tree-sitter highlighting for Dockerfile, Python, SQL, Go, and Lua
+- Edit-menu Markdown actions for emphasis, links, headings, quotes, lists, code
+  blocks, tables, and horizontal rules
+- Restored window frame and sidebar width, File > Open Recent, and Command-W to
+  close the active file
+
+### Fixed
+
+- Mermaid previews now use PNG output from the local `mmdc`, preserving its
+  default HTML labels; SVG export writes the original `mmdc` SVG without
+  application-side sanitation
+- Removed the Base Mermaid theme option because current Mermaid CLI versions do
+  not accept it through the command-line theme argument
+
+### Removed
+
+- Remaining unused single-file migration artifacts: the bundled example
+  document, the legacy WebKit PDF pagination helper, and the native preview
+  forwarding facade
+
 ## [0.23.0] - 2026-07-26
 
 ### Added

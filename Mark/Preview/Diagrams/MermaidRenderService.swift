@@ -30,9 +30,9 @@ nonisolated enum MermaidRenderError: LocalizedError, Sendable {
                 ? "Mermaid rendering failed with exit code \(exitCode)."
                 : message
         case .outputMissing:
-            "Mermaid CLI finished without producing an SVG."
+            "Mermaid CLI finished without producing an output file."
         case .outputTooLarge:
-            "The generated Mermaid SVG exceeds the 8 MB preview limit."
+            "The generated Mermaid output exceeds the 8 MB preview limit."
         case .invalidSVG:
             "Mermaid CLI produced an invalid SVG document."
         }
@@ -41,7 +41,7 @@ nonisolated enum MermaidRenderError: LocalizedError, Sendable {
 
 actor MermaidRenderService {
     static let shared = MermaidRenderService()
-    nonisolated static let rendererVersion = "local-mmdc-v1"
+    nonisolated static let rendererVersion = "local-mmdc-png-v1"
 
     private static let maximumInputBytes = 256 * 1_024
     private static let maximumOutputBytes = 8 * 1_024 * 1_024
@@ -51,12 +51,45 @@ actor MermaidRenderService {
         self.runner = runner
     }
 
-    func render(
+    func renderPNG(
         source: String,
         theme: MermaidPreviewTheme,
         appearance _: String,
         tool: InstalledDiagramTool? = nil
+    ) async throws -> Data {
+        try await render(
+            source: source,
+            theme: theme,
+            outputExtension: "png",
+            tool: tool
+        )
+    }
+
+    func renderSVG(
+        source: String,
+        theme: MermaidPreviewTheme,
+        tool: InstalledDiagramTool? = nil
     ) async throws -> String {
+        let data = try await render(
+            source: source,
+            theme: theme,
+            outputExtension: "svg",
+            tool: tool
+        )
+        guard let svg = String(data: data, encoding: .utf8),
+              svg.range(of: "<svg", options: .caseInsensitive) != nil,
+              svg.range(of: "</svg>", options: .caseInsensitive) != nil else {
+            throw MermaidRenderError.invalidSVG
+        }
+        return svg
+    }
+
+    private func render(
+        source: String,
+        theme: MermaidPreviewTheme,
+        outputExtension: String,
+        tool: InstalledDiagramTool?
+    ) async throws -> Data {
         try Task.checkCancellation()
         guard source.utf8.count <= Self.maximumInputBytes else {
             throw MermaidRenderError.inputTooLarge
@@ -72,7 +105,7 @@ actor MermaidRenderService {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let inputURL = directory.appendingPathComponent("input.mmd")
-        let outputURL = directory.appendingPathComponent("output.svg")
+        let outputURL = directory.appendingPathComponent("output.\(outputExtension)")
         try source.write(to: inputURL, atomically: true, encoding: .utf8)
 
         let result: ExternalProcessResult
@@ -111,7 +144,7 @@ actor MermaidRenderService {
             )
         }
 
-        return try loadSVG(at: outputURL)
+        return try loadOutput(at: outputURL)
     }
 
     private func makeTemporaryDirectory() throws -> URL {
@@ -133,7 +166,7 @@ actor MermaidRenderService {
         return directory
     }
 
-    private func loadSVG(at outputURL: URL) throws -> String {
+    private func loadOutput(at outputURL: URL) throws -> Data {
         guard FileManager.default.fileExists(atPath: outputURL.path) else {
             throw MermaidRenderError.outputMissing
         }
@@ -142,12 +175,7 @@ actor MermaidRenderService {
         guard size <= Self.maximumOutputBytes else {
             throw MermaidRenderError.outputTooLarge
         }
-        let svg = try String(contentsOf: outputURL, encoding: .utf8)
-        guard svg.range(of: "<svg", options: .caseInsensitive) != nil,
-              svg.range(of: "</svg>", options: .caseInsensitive) != nil else {
-            throw MermaidRenderError.invalidSVG
-        }
-        return svg
+        return try Data(contentsOf: outputURL, options: [.mappedIfSafe])
     }
 
     private func cleanedDiagnostic(

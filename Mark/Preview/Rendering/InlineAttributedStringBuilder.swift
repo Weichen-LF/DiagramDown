@@ -11,30 +11,40 @@ struct InlineAttributedStringBuilder {
     func build(
         _ content: PreviewInlineContent,
         theme: PreviewTheme,
-        metrics: PreviewMetrics
+        metrics: PreviewMetrics,
+        baseFont: Font? = nil
     ) -> AttributedString {
-        content.nodes.reduce(into: AttributedString()) { result, node in
-            result.append(build(node, theme: theme, metrics: metrics))
+        let resolvedBaseFont = baseFont ?? Font.system(size: metrics.bodyFontSize)
+        return content.nodes.reduce(into: AttributedString()) { result, node in
+            result.append(
+                build(
+                    node,
+                    theme: theme,
+                    metrics: metrics,
+                    baseFont: resolvedBaseFont
+                )
+            )
         }
     }
 
     private func build(
         _ node: PreviewInlineNode,
         theme: PreviewTheme,
-        metrics: PreviewMetrics
+        metrics: PreviewMetrics,
+        baseFont: Font
     ) -> AttributedString {
         switch node {
         case .text(let text), .rawText(let text):
-            return base(text, theme: theme, metrics: metrics)
+            return base(text, theme: theme, font: baseFont)
 
         case .softBreak:
-            return base(" ", theme: theme, metrics: metrics)
+            return base(" ", theme: theme, font: baseFont)
 
         case .hardBreak:
-            return base("\n", theme: theme, metrics: metrics)
+            return base("\n", theme: theme, font: baseFont)
 
         case .code(let code):
-            var result = base(code, theme: theme, metrics: metrics)
+            var result = base(code, theme: theme, font: baseFont)
             result.font = Font.system(
                 size: metrics.codeFontSize,
                 weight: .regular,
@@ -44,22 +54,42 @@ struct InlineAttributedStringBuilder {
             return result
 
         case .emphasis(let children):
-            var result = build(children, theme: theme, metrics: metrics)
+            var result = build(
+                children,
+                theme: theme,
+                metrics: metrics,
+                baseFont: baseFont
+            )
             result.inlinePresentationIntent = .emphasized
             return result
 
         case .strong(let children):
-            var result = build(children, theme: theme, metrics: metrics)
+            var result = build(
+                children,
+                theme: theme,
+                metrics: metrics,
+                baseFont: baseFont
+            )
             result.inlinePresentationIntent = .stronglyEmphasized
             return result
 
         case .strikethrough(let children):
-            var result = build(children, theme: theme, metrics: metrics)
+            var result = build(
+                children,
+                theme: theme,
+                metrics: metrics,
+                baseFont: baseFont
+            )
             result.strikethroughStyle = .single
             return result
 
         case .link(let destination, _, let children):
-            var result = build(children, theme: theme, metrics: metrics)
+            var result = build(
+                children,
+                theme: theme,
+                metrics: metrics,
+                baseFont: baseFont
+            )
             if let url = SafePreviewURL.link(destination) {
                 result.link = url
                 result.foregroundColor = NSColor(theme.accent)
@@ -71,7 +101,7 @@ struct InlineAttributedStringBuilder {
             return base(
                 alt.isEmpty ? "[Image]" : "[Image: \(alt)]",
                 theme: theme,
-                metrics: metrics
+                font: baseFont
             )
         }
     }
@@ -79,21 +109,29 @@ struct InlineAttributedStringBuilder {
     private func build(
         _ children: [PreviewInlineNode],
         theme: PreviewTheme,
-        metrics: PreviewMetrics
+        metrics: PreviewMetrics,
+        baseFont: Font
     ) -> AttributedString {
         children.reduce(into: AttributedString()) { result, child in
-            result.append(build(child, theme: theme, metrics: metrics))
+            result.append(
+                build(
+                    child,
+                    theme: theme,
+                    metrics: metrics,
+                    baseFont: baseFont
+                )
+            )
         }
     }
 
     private func base(
         _ string: String,
         theme: PreviewTheme,
-        metrics: PreviewMetrics
+        font: Font
     ) -> AttributedString {
         var result = AttributedString(string)
         result.foregroundColor = NSColor(theme.primaryText)
-        result.font = Font.system(size: metrics.bodyFontSize)
+        result.font = font
         return result
     }
 }

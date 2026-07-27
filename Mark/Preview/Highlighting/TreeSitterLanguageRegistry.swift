@@ -6,9 +6,13 @@
 import Foundation
 import SwiftTreeSitter
 import TreeSitterBash
+import TreeSitterDockerfile
+import TreeSitterGo
 import TreeSitterJavaScript
 import TreeSitterJSON
 import TreeSitterLua
+import TreeSitterPython
+import TreeSitterSqlBigquery
 import TreeSitterSwift
 import TreeSitterTSX
 import TreeSitterTypeScript
@@ -41,6 +45,20 @@ nonisolated struct TreeSitterLanguageRegistry {
                 pointer: tree_sitter_bash(),
                 name: "Bash"
             )
+        case .dockerfile:
+            try definition(
+                language: .dockerfile,
+                version: "0.2.0",
+                pointer: tree_sitter_dockerfile(),
+                name: "Dockerfile"
+            )
+        case .go:
+            try definition(
+                language: .go,
+                version: "0.25.0",
+                pointer: tree_sitter_go(),
+                name: "Go"
+            )
         case .javascript, .jsx:
             try definition(
                 language: language,
@@ -61,6 +79,20 @@ nonisolated struct TreeSitterLanguageRegistry {
                 version: "0.3.0",
                 pointer: tree_sitter_lua(),
                 name: "Lua"
+            )
+        case .python:
+            try definition(
+                language: .python,
+                version: "0.23.6",
+                pointer: tree_sitter_python(),
+                name: "Python"
+            )
+        case .sql:
+            try definition(
+                language: .sql,
+                version: "0.8.0",
+                pointer: tree_sitter_sql_bigquery(),
+                name: "SqlBigquery"
             )
         case .swift:
             try definition(
