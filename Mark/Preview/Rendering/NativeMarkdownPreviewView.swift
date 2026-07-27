@@ -140,8 +140,13 @@ private struct NativePreviewDocumentView: View {
                 }
             )
             .onPreferenceChange(PreviewBlockGeometryPreferenceKey.self) { values in
-                geometries = values
-                reportPreviewPosition()
+                guard values != geometries else {
+                    return
+                }
+                Task { @MainActor in
+                    geometries = values
+                    reportPreviewPosition()
+                }
             }
             .onChange(of: editorScrollPosition) { _, position in
                 scrollToEditorPosition(position, proxy: proxy)

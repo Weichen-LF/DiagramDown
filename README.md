@@ -38,16 +38,40 @@ The native SwiftUI preview, Tree-sitter syntax highlighting, and Swift Markdown
 formatter are bundled with the app. DiagramDown calls local `mmdc` and `d2`
 executables directly; your documents stay on your Mac.
 
-## Made for real Markdown projects
+## Features
 
-- **Workspace first** — open recent folders, manage files from the tree, and keep multiple files in tabs.
-- **Native editing** — macOS text input, line numbers, Undo, Find, smooth scrolling, and familiar shortcuts.
-- **Live preview** — Markdown, Mermaid, D2, code highlighting, themes, and light/dark appearance.
-- **Local images** — preview common image formats through relative, absolute, or `file://` paths.
-- **Diagram friendly** — inspect diagrams in a focused viewer, pinch to zoom, and export SVG.
-- **Stay in sync** — scroll either pane or click the preview to return to the matching source.
-- **Pick up where you left off** — restore the last folder, window, sidebar, tabs, layout, scroll position, and unsaved edits.
-- **Finish the document** — format Markdown and embedded code, then export the complete preview as PDF.
+### Workspace
+
+- Open a folder of Markdown files and browse them in a sidebar tree
+- Create, rename, move, and delete files or folders from the app
+- Keep multiple documents open in tabs, with **Open Recent** for folders
+- Restore the last folder, window frame, sidebar width, tabs, layout, scroll
+  position, and unsaved edits after relaunch
+- Detect external file changes and deletions, with conflict handling for dirty
+  buffers
+
+### Editing
+
+- Native macOS text editing with line numbers, Undo, Find, and familiar shortcuts
+- Edit-menu Markdown actions for emphasis, links, headings, quotes, lists, code
+  blocks, tables, and horizontal rules
+- **Insert Image…** to pick a local image, optionally copy it into workspace
+  `assets/`, and insert a document-relative Markdown path
+- Format Document for Markdown and embedded D2 fences
+- Tree-sitter highlighting for common languages, including Dockerfile, Python,
+  SQL, Go, and Lua
+
+### Preview and diagrams
+
+- Live Markdown preview with light/dark themes and zoom
+- Mermaid and D2 fences render through local CLIs; missing tools fall back to
+  fenced source
+- Focused Mermaid/D2 viewer: resize the sheet, pinch to zoom, and export SVG
+- Sharper Mermaid PNG previews at 2× render scale without changing layout size
+- Local images from relative, absolute, or `file://` paths (PNG, JPEG, GIF,
+  TIFF, BMP, HEIC, WebP, SVG, and more)
+- Scroll sync between editor and preview; click the preview to jump to source
+- Export the complete preview as PDF
 
 Choose the layout that fits the moment: **Editor Only**, **Editor and Preview**,
 or **Preview Only**.
@@ -55,8 +79,16 @@ or **Preview Only**.
 ## Get started
 
 1. Download the Apple Silicon DMG from [GitHub Releases](https://github.com/Weichen-LF/DiagramDown/releases/latest).
-2. Drag `DiagramDown.app` into the Applications shortcut.
-3. Open a folder containing `.md` or `.markdown` files and start writing.
+2. Drag `DiagramDown.app` into Applications.
+3. Clear the quarantine attribute (required while the community build is not
+   Apple-notarized), then open the app:
+
+```sh
+xattr -r -d com.apple.quarantine /Applications/DiagramDown.app
+open /Applications/DiagramDown.app
+```
+
+4. Open a folder containing `.md` or `.markdown` files and start writing.
 
 For diagram previews, install either or both optional tools:
 
@@ -68,20 +100,23 @@ brew install d2
 Missing tools simply leave their fenced source visible as code. Their detected
 versions and paths are shown under **Settings > Diagram Tools**.
 
-DiagramDown requires macOS 15 or later.
+DiagramDown requires macOS 15 or later on Apple Silicon.
 
 > [!IMPORTANT]
-> The current community build is ad-hoc signed and is not notarized by Apple.
-> On first launch, macOS may require **Open** from Finder’s context menu or
+> The current community build is ad-hoc signed and is **not** notarized by
+> Apple (no Developer ID certificate yet). macOS Gatekeeper will usually block
+> a freshly downloaded copy.
+>
+> Prefer removing the quarantine attribute with `xattr` as shown above. You
+> can also Control-click the app in Finder and choose **Open**, or use
 > **Open Anyway** in System Settings > Privacy & Security. Never disable
 > Gatekeeper globally.
 
 ## Current release
 
-DiagramDown `0.24.0` is an Apple Silicon release. It adds external-change
-conflict handling, sidebar file management, restored window and sidebar
-geometry, Open Recent, richer Markdown editing commands, more Tree-sitter
-grammars, and improved local Mermaid and image previews.
+DiagramDown `0.25.0` is an Apple Silicon release. It adds image insertion with
+optional `assets/` copy, resizable Mermaid/D2 diagram viewers sized near the
+parent window, and sharper Mermaid PNG previews at 2× scale.
 
 Intel Macs and automatic updates are not available yet.
 

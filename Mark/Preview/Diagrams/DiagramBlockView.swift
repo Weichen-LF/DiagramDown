@@ -34,7 +34,7 @@ struct DiagramBlockView: View {
 
     @State private var state = DiagramBlockState.idle
     @State private var showsViewer = false
-    @State private var viewerPreferredSize = CGSize(width: 720, height: 520)
+    @State private var viewerPreferredSize = CGSize(width: 960, height: 640)
     @AppStorage(DiagramToolRegistry.revisionPreferenceKey) private var toolRevision = 0
 
     var body: some View {
@@ -91,12 +91,11 @@ struct DiagramBlockView: View {
     }
 
     private static func preferredViewerSize() -> CGSize {
-        let parent = NSApp.keyWindow?.frame.size
-            ?? NSApp.mainWindow?.frame.size
+        let parent = (NSApp.keyWindow ?? NSApp.mainWindow)?.contentLayoutRect.size
             ?? CGSize(width: 1_120, height: 720)
         return CGSize(
-            width: max(720, parent.width * 0.9),
-            height: max(520, parent.height * 0.9)
+            width: max(960, parent.width * 0.96),
+            height: max(640, parent.height * 0.96)
         )
     }
 
@@ -148,6 +147,8 @@ struct DiagramBlockView: View {
 
     private var requestID: String {
         [
+            blockID.rawValue,
+            String(revision),
             kind.rawValue,
             MarkdownParserService.digest(source),
             theme.id,
@@ -160,19 +161,30 @@ struct DiagramBlockView: View {
     private func render() async {
         state = .rendering
         let request = diagramRequest
+        let expectedBlockID = blockID
+        let expectedRevision = revision
 
         do {
             let result = try await DiagramRenderCoordinator.shared.render(request)
             try Task.checkCancellation()
-            guard result.blockID == blockID, result.revision == revision else {
+            guard result.blockID == expectedBlockID,
+                  result.revision == expectedRevision,
+                  blockID == expectedBlockID,
+                  revision == expectedRevision else {
                 return
             }
             state = .rendered(result.document)
         } catch is CancellationError {
             return
         } catch is DiagramToolResolutionError {
+            guard blockID == expectedBlockID, revision == expectedRevision else {
+                return
+            }
             state = .unavailable
         } catch {
+            guard blockID == expectedBlockID, revision == expectedRevision else {
+                return
+            }
             state = .failed(message: error.localizedDescription)
         }
     }
@@ -261,114 +273,61 @@ private struct DiagramViewerView: View {
     @State private var gestureStartZoom: CGFloat = 1
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(title)
-                    .font(.headline)
-                Spacer()
-                Button("Fit") { zoom = 1 }
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
+        ZStack {
+            // Establish the sheet's ideal size for `.fitted` presentation sizing.
+            // ScrollView content alone is often much smaller than the parent window.
+            Color.clear
+                .frame(width: preferredSize.width, height: preferredSize.height)
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text(title)
+                        .font(.headline)
+                    Spacer()
+                    Button("Fit") { zoom = 1 }
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .keyboardShortcut(.cancelAction)
                 }
-                .keyboardShortcut(.cancelAction)
-            }
-            .padding()
+                .padding()
 
-            Divider()
+                Divider()
 
-            ScrollView([.horizontal, .vertical]) {
-                NativeDiagramView(
-                    document: document,
-                    background: theme.background
-                )
-                    .frame(
-                        width: max(document.intrinsicSize.width * zoom, 100),
-                        height: max(document.intrinsicSize.height * zoom, 100)
+                ScrollView([.horizontal, .vertical]) {
+                    NativeDiagramView(
+                        document: document,
+                        background: theme.background
                     )
-                    .padding(24)
+                        .frame(
+                            width: max(document.intrinsicSize.width * zoom, 100),
+                            height: max(document.intrinsicSize.height * zoom, 100)
+                        )
+                        .padding(24)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(theme.background)
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            zoom = min(max(gestureStartZoom * value.magnification, 0.25), 4)
+                        }
+                        .onEnded { _ in
+                            gestureStartZoom = zoom
+                        }
+                )
             }
-            .background(theme.background)
-            .simultaneousGesture(
-                MagnifyGesture()
-                    .onChanged { value in
-                        zoom = min(max(gestureStartZoom * value.magnification, 0.25), 4)
-                    }
-                    .onEnded { _ in
-                        gestureStartZoom = zoom
-                    }
-            )
         }
         .frame(
-            minWidth: 480,
+            minWidth: 640,
             idealWidth: preferredSize.width,
-            minHeight: 360,
-            idealHeight: preferredSize.height
+            maxWidth: .infinity,
+            minHeight: 480,
+            idealHeight: preferredSize.height,
+            maxHeight: .infinity
         )
-        .background(
-            ResizableSheetWindowConfigurator(
-                initialSize: preferredSize,
-                minimumSize: CGSize(width: 480, height: 360)
-            )
-        )
-    }
-}
-
-private struct ResizableSheetWindowConfigurator: NSViewRepresentable {
-    let initialSize: CGSize
-    let minimumSize: CGSize
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        DispatchQueue.main.async {
-            context.coordinator.configureIfNeeded(
-                view,
-                initialSize: initialSize,
-                minimumSize: minimumSize
-            )
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async {
-            context.coordinator.configureIfNeeded(
-                nsView,
-                initialSize: initialSize,
-                minimumSize: minimumSize
-            )
-        }
-    }
-
-    final class Coordinator {
-        private var didConfigure = false
-
-        @MainActor
-        func configureIfNeeded(
-            _ view: NSView,
-            initialSize: CGSize,
-            minimumSize: CGSize
-        ) {
-            guard !didConfigure, let window = view.window else {
-                return
-            }
-            didConfigure = true
-            window.styleMask.insert(.resizable)
-            window.minSize = NSSize(
-                width: minimumSize.width,
-                height: minimumSize.height
-            )
-            window.setContentSize(
-                NSSize(
-                    width: max(initialSize.width, minimumSize.width),
-                    height: max(initialSize.height, minimumSize.height)
-                )
-            )
-        }
+        .presentationSizing(.fitted)
     }
 }
