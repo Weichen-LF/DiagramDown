@@ -6,6 +6,20 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-27
+
+### Added
+
+- Edit > Markdown > Insert Image… opens a file picker, optionally copies into
+  the workspace `assets/` folder, and inserts a document-relative Markdown image
+- Mermaid and D2 diagram viewer sheets are resizable and open near the size of
+  the parent window
+
+### Changed
+
+- Mermaid PNG previews render at 2× scale for sharper text and edges while
+  keeping on-screen layout size unchanged
+
 ## [0.24.0] - 2026-07-26
 
 ### Added

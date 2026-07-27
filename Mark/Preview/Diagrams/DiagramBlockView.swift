@@ -34,6 +34,7 @@ struct DiagramBlockView: View {
 
     @State private var state = DiagramBlockState.idle
     @State private var showsViewer = false
+    @State private var viewerPreferredSize = CGSize(width: 720, height: 520)
     @AppStorage(DiagramToolRegistry.revisionPreferenceKey) private var toolRevision = 0
 
     var body: some View {
@@ -48,6 +49,7 @@ struct DiagramBlockView: View {
             if let document = state.document {
                 HStack(spacing: 6) {
                     Button {
+                        viewerPreferredSize = Self.preferredViewerSize()
                         showsViewer = true
                     } label: {
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -81,10 +83,21 @@ struct DiagramBlockView: View {
                 DiagramViewerView(
                     document: document,
                     title: kind == .mermaid ? "Mermaid Diagram" : "D2 Diagram",
-                    theme: theme
+                    theme: theme,
+                    preferredSize: viewerPreferredSize
                 )
             }
         }
+    }
+
+    private static func preferredViewerSize() -> CGSize {
+        let parent = NSApp.keyWindow?.frame.size
+            ?? NSApp.mainWindow?.frame.size
+            ?? CGSize(width: 1_120, height: 720)
+        return CGSize(
+            width: max(720, parent.width * 0.9),
+            height: max(520, parent.height * 0.9)
+        )
     }
 
     @ViewBuilder
@@ -241,6 +254,7 @@ private struct DiagramViewerView: View {
     let document: DiagramDocument
     let title: String
     let theme: PreviewTheme
+    let preferredSize: CGSize
 
     @Environment(\.dismiss) private var dismiss
     @State private var zoom: CGFloat = 1
@@ -286,6 +300,75 @@ private struct DiagramViewerView: View {
                     }
             )
         }
-        .frame(minWidth: 720, minHeight: 520)
+        .frame(
+            minWidth: 480,
+            idealWidth: preferredSize.width,
+            minHeight: 360,
+            idealHeight: preferredSize.height
+        )
+        .background(
+            ResizableSheetWindowConfigurator(
+                initialSize: preferredSize,
+                minimumSize: CGSize(width: 480, height: 360)
+            )
+        )
+    }
+}
+
+private struct ResizableSheetWindowConfigurator: NSViewRepresentable {
+    let initialSize: CGSize
+    let minimumSize: CGSize
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        DispatchQueue.main.async {
+            context.coordinator.configureIfNeeded(
+                view,
+                initialSize: initialSize,
+                minimumSize: minimumSize
+            )
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            context.coordinator.configureIfNeeded(
+                nsView,
+                initialSize: initialSize,
+                minimumSize: minimumSize
+            )
+        }
+    }
+
+    final class Coordinator {
+        private var didConfigure = false
+
+        @MainActor
+        func configureIfNeeded(
+            _ view: NSView,
+            initialSize: CGSize,
+            minimumSize: CGSize
+        ) {
+            guard !didConfigure, let window = view.window else {
+                return
+            }
+            didConfigure = true
+            window.styleMask.insert(.resizable)
+            window.minSize = NSSize(
+                width: minimumSize.width,
+                height: minimumSize.height
+            )
+            window.setContentSize(
+                NSSize(
+                    width: max(initialSize.width, minimumSize.width),
+                    height: max(initialSize.height, minimumSize.height)
+                )
+            )
+        }
     }
 }

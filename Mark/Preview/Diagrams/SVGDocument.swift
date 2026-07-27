@@ -18,7 +18,7 @@ nonisolated struct RasterDiagramDocument: Hashable, Sendable {
     let intrinsicSize: CGSize
     let digest: String
 
-    init(data: Data) throws {
+    init(data: Data, displayScale: CGFloat = 1) throws {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               CGImageSourceGetCount(source) > 0,
               let properties = CGImageSourceCopyPropertiesAtIndex(
@@ -32,10 +32,11 @@ nonisolated struct RasterDiagramDocument: Hashable, Sendable {
               height.doubleValue > 0 else {
             throw DiagramRasterError.invalidImage
         }
+        let scale = max(displayScale, 1)
         self.data = data
         intrinsicSize = CGSize(
-            width: width.doubleValue,
-            height: height.doubleValue
+            width: width.doubleValue / scale,
+            height: height.doubleValue / scale
         )
         digest = MarkdownParserService.digest(data.base64EncodedString())
     }

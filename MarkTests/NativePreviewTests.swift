@@ -549,14 +549,24 @@ final class NativePreviewDiagramTests: XCTestCase {
             appearance: "light",
             tool: tool
         )
-        let preview = try RasterDiagramDocument(data: png)
+        let capturedArguments = try loadCapturedArguments(in: fixture.directory)
+        let preview = try RasterDiagramDocument(
+            data: png,
+            displayScale: CGFloat(MermaidRenderService.pngScale)
+        )
         let rawSVG = try await MermaidRenderService.shared.renderSVG(
             source: "flowchart LR\n  A --> B",
             theme: .default,
             tool: tool
         )
 
-        XCTAssertEqual(preview.intrinsicSize, CGSize(width: 1, height: 1))
+        XCTAssertEqual(MermaidRenderService.pngScale, 2)
+        XCTAssertEqual(
+            preview.intrinsicSize,
+            CGSize(width: 0.5, height: 0.5)
+        )
+        XCTAssertTrue(capturedArguments.contains("-s"))
+        XCTAssertTrue(capturedArguments.contains("2"))
         XCTAssertTrue(rawSVG.localizedCaseInsensitiveContains("<foreignObject"))
         XCTAssertTrue(rawSVG.contains("default mmdc output"))
     }
@@ -669,6 +679,7 @@ final class NativePreviewDiagramTests: XCTestCase {
         )
         let executable = directory.appendingPathComponent("mmdc")
         let pngFixture = directory.appendingPathComponent("preview.png")
+        let argumentsURL = directory.appendingPathComponent("arguments.txt")
         let png = try XCTUnwrap(
             Data(
                 base64Encoded:
@@ -682,6 +693,7 @@ final class NativePreviewDiagramTests: XCTestCase {
           printf '11.16.0\\n'
           exit 0
         fi
+        printf '%s\\n' "$*" > "\(argumentsURL.path)"
         output=""
         while [ "$#" -gt 0 ]; do
           case "$1" in
@@ -702,5 +714,12 @@ final class NativePreviewDiagramTests: XCTestCase {
             ofItemAtPath: executable.path
         )
         return (directory, executable)
+    }
+
+    private func loadCapturedArguments(in directory: URL) throws -> [String] {
+        let argumentsURL = directory.appendingPathComponent("arguments.txt")
+        let contents = try String(contentsOf: argumentsURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return contents.split(separator: " ").map(String.init)
     }
 }

@@ -21,12 +21,24 @@ struct MarkdownEditMenuAction {
     }
 }
 
+struct InsertMarkdownImageAction {
+    let perform: () -> Void
+
+    func callAsFunction() {
+        perform()
+    }
+}
+
 private struct FormatDocumentActionKey: FocusedValueKey {
     typealias Value = FormatDocumentAction
 }
 
 private struct MarkdownEditMenuActionKey: FocusedValueKey {
     typealias Value = MarkdownEditMenuAction
+}
+
+private struct InsertMarkdownImageActionKey: FocusedValueKey {
+    typealias Value = InsertMarkdownImageAction
 }
 
 extension FocusedValues {
@@ -39,11 +51,17 @@ extension FocusedValues {
         get { self[MarkdownEditMenuActionKey.self] }
         set { self[MarkdownEditMenuActionKey.self] = newValue }
     }
+
+    var insertMarkdownImageAction: InsertMarkdownImageAction? {
+        get { self[InsertMarkdownImageActionKey.self] }
+        set { self[InsertMarkdownImageActionKey.self] = newValue }
+    }
 }
 
 struct FormattingCommands: Commands {
     @FocusedValue(\.formatDocumentAction) private var formatDocument
     @FocusedValue(\.markdownEditMenuAction) private var markdownEdit
+    @FocusedValue(\.insertMarkdownImageAction) private var insertImage
 
     var body: some Commands {
         CommandGroup(after: .pasteboard) {
@@ -58,6 +76,8 @@ struct FormattingCommands: Commands {
                 Button("Inline Code") { markdownEdit?(.inlineCode) }
                 Button("Link") { markdownEdit?(.link) }
                     .keyboardShortcut("k", modifiers: .command)
+                Button("Insert Image…") { insertImage?() }
+                    .disabled(insertImage == nil)
 
                 Divider()
 
@@ -73,7 +93,7 @@ struct FormattingCommands: Commands {
                 Button("Table") { markdownEdit?(.table) }
                 Button("Horizontal Rule") { markdownEdit?(.horizontalRule) }
             }
-            .disabled(markdownEdit == nil)
+            .disabled(markdownEdit == nil && insertImage == nil)
 
             Button("Format Document") {
                 formatDocument?()

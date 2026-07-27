@@ -162,6 +162,17 @@ struct EditorPreviewSurface: View {
                         perform: session.editorController.perform
                     )
             )
+            .focusedSceneValue(
+                \.insertMarkdownImageAction,
+                activeViewMode == .previewOnly
+                    ? nil
+                    : InsertMarkdownImageAction {
+                        session.editorController.insertImage(
+                            documentURL: fileURL,
+                            workspaceRootURL: workspaceRootURL
+                        )
+                    }
+            )
     }
 
     @ViewBuilder

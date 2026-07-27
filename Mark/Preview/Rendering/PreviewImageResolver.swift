@@ -26,7 +26,7 @@ nonisolated enum PreviewImageLoadingError: Equatable, LocalizedError, Sendable {
 }
 
 nonisolated enum PreviewImageResolver {
-    private static let supportedFileExtensions: Set<String> = [
+    static let supportedExtensions: Set<String> = [
         "png",
         "jpg",
         "jpeg",
@@ -85,7 +85,7 @@ nonisolated enum PreviewImageResolver {
         let resolvedCandidate = candidate
             .standardizedFileURL
             .resolvingSymlinksInPath()
-        guard supportedFileExtensions.contains(
+        guard supportedExtensions.contains(
             resolvedCandidate.pathExtension.lowercased()
         ) else {
             throw PreviewImageLoadingError.unsupportedFormat

@@ -37,6 +37,7 @@ enum AppHelp {
         Bold                ⌘B
         Italic              ⌘I
         Link                ⌘K
+        Insert Image…       Edit > Markdown
         Format Document     ⇧⌥F
 
         Zoom In             ⌘+
