@@ -89,7 +89,7 @@ nonisolated enum D2RenderError: LocalizedError, Sendable {
 
 actor D2RenderService {
     static let shared = D2RenderService()
-    nonisolated static let rendererVersion = "local-d2-v2"
+    nonisolated static let rendererVersion = "local-d2-v3"
 
     private static let maximumInputBytes = 256 * 1_024
     private static let maximumOutputBytes = 8 * 1_024 * 1_024

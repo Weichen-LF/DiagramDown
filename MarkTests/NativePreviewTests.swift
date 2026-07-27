@@ -310,9 +310,33 @@ final class NativePreviewSafetyTests: XCTestCase {
 
         let document = try await SVGSanitizer().sanitize(source)
 
-        XCTAssertTrue(document.sanitizedXML.contains(#"fill="none""#))
         XCTAssertTrue(document.sanitizedXML.contains("#ECECFF"))
         XCTAssertFalse(document.sanitizedXML.contains("#FFFFFF"))
+    }
+
+    func testSVGSanitizerRemovesD2PaddedAndTransparentCanvasBackgrounds() async throws {
+        let d2 = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 647 154">
+          <svg class="d2-svg" width="647" height="154" viewBox="-41 -26 647 154">
+            <rect x="-41.000000" y="-26.000000" width="647.000000" height="154.000000" rx="0.000000" fill="#FFFFFF" class=" fill-N7" stroke-width="0" />
+            <rect x="0.000000" y="18.000000" width="87.000000" height="66.000000" stroke="#0D32B2" fill="#F7F8FE" style="stroke-width:2;" />
+          </svg>
+        </svg>
+        """
+        let mmdrTransparent = """
+        <svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60">
+          <rect x="0" y="0" width="120" height="60" fill="transparent"/>
+          <rect x="20" y="15" width="60" height="30" fill="#ECECFF"/>
+        </svg>
+        """
+
+        let sanitizedD2 = try await SVGSanitizer().sanitize(d2)
+        let sanitizedMmdr = try await SVGSanitizer().sanitize(mmdrTransparent)
+
+        XCTAssertFalse(sanitizedD2.sanitizedXML.contains("#FFFFFF"))
+        XCTAssertTrue(sanitizedD2.sanitizedXML.contains("#F7F8FE"))
+        XCTAssertFalse(sanitizedMmdr.sanitizedXML.contains("transparent"))
+        XCTAssertTrue(sanitizedMmdr.sanitizedXML.contains("#ECECFF"))
     }
 
     func testSVGSanitizerRejectsEntityDocumentsAndInvalidDimensions() async {
@@ -618,7 +642,7 @@ final class NativePreviewDiagramTests: XCTestCase {
         }
         XCTAssertTrue(capturedArguments.contains("-e"))
         XCTAssertTrue(capturedArguments.contains("svg"))
-        XCTAssertTrue(capturedArguments.contains("-c"))
+        XCTAssertFalse(capturedArguments.contains("-c"))
         XCTAssertFalse(document.sanitizedXML.localizedCaseInsensitiveContains("script"))
         XCTAssertTrue(document.sanitizedXML.contains("mmdr output"))
         XCTAssertFalse(document.sanitizedXML.contains("#FFFFFF"))

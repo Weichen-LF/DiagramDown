@@ -29,6 +29,8 @@ The project follows [Semantic Versioning](https://semver.org/).
   nested Edit menus flicker and become unusable
 - Sidebar directory polling runs every 10 seconds and also refreshes when a tree
   row is clicked, instead of scanning every second
+- D2 padded canvas rects and mmdr `transparent` fills are removed so SVG
+  previews stay clear under AppKit (which paints `transparent` as black)
 
 ## [0.25.0] - 2026-07-27
 
