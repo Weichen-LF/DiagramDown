@@ -143,8 +143,8 @@ private struct NativePreviewDocumentView: View {
                 guard values != geometries else {
                     return
                 }
+                geometries = values
                 Task { @MainActor in
-                    geometries = values
                     reportPreviewPosition()
                 }
             }

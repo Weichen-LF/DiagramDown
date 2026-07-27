@@ -30,26 +30,32 @@ nonisolated enum MarkdownImageInsertionError: LocalizedError, Equatable, Sendabl
 nonisolated enum MarkdownImageInsertion {
     static let assetsDirectoryName = "assets"
 
-    static var allowedContentTypes: [UTType] {
-        [
-            .png,
-            .jpeg,
-            .gif,
-            .tiff,
-            .bmp,
-            .webP,
-            .heic,
-            .heif,
-            .svg,
-            UTType(filenameExtension: "ico") ?? .image,
-        ]
-    }
+    static let allowedContentTypes: [UTType] = [
+        .png,
+        .jpeg,
+        .gif,
+        .tiff,
+        .bmp,
+        .webP,
+        .heic,
+        .heif,
+        .svg,
+    ] + [
+        UTType(filenameExtension: "ico"),
+    ].compactMap { $0 }
 
     static func markdown(
         alt: String,
         path: String
     ) -> String {
         "![\(alt)](\(path))"
+    }
+
+    static func altText(fromFileName fileName: String) -> String {
+        fileName
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "[", with: "\\[")
+            .replacingOccurrences(of: "]", with: "\\]")
     }
 
     static func insert(
@@ -169,7 +175,8 @@ nonisolated enum MarkdownImageInsertion {
 
     private static func encodePathComponent(_ component: String) -> String {
         var allowed = CharacterSet.urlPathAllowed
-        allowed.remove(charactersIn: "/")
+        // Parentheses are urlPathAllowed but terminate Markdown inline links.
+        allowed.remove(charactersIn: "/()")
         return component.addingPercentEncoding(withAllowedCharacters: allowed)
             ?? component
     }
@@ -180,7 +187,7 @@ enum MarkdownImagePicker {
     static func choose(
         documentURL: URL?,
         workspaceRootURL: URL
-    ) -> Result<(alt: String, path: String), MarkdownImageInsertionError> {
+    ) async -> Result<(alt: String, path: String), MarkdownImageInsertionError> {
         guard let documentURL else {
             return .failure(.documentNotSaved)
         }
@@ -201,17 +208,29 @@ enum MarkdownImagePicker {
         checkbox.state = .on
         panel.accessoryView = checkbox
 
-        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+        let response: NSApplication.ModalResponse
+        if let window = NSApp.keyWindow {
+            response = await panel.beginSheetModal(for: window)
+        } else {
+            response = panel.runModal()
+        }
+
+        guard response == .OK, let selectedURL = panel.url else {
             return .failure(.cancelled)
         }
 
+        let copyToAssets = checkbox.state == .on
         do {
-            let imageURL = try MarkdownImageInsertion.resolvedImageURL(
-                selectedURL: selectedURL,
-                copyToAssets: checkbox.state == .on,
-                workspaceRootURL: workspaceRootURL
+            let imageURL = try await Task.detached(priority: .userInitiated) {
+                try MarkdownImageInsertion.resolvedImageURL(
+                    selectedURL: selectedURL,
+                    copyToAssets: copyToAssets,
+                    workspaceRootURL: workspaceRootURL
+                )
+            }.value
+            let alt = MarkdownImageInsertion.altText(
+                fromFileName: imageURL.deletingPathExtension().lastPathComponent
             )
-            let alt = imageURL.deletingPathExtension().lastPathComponent
             let path = MarkdownImageInsertion.markdownPath(
                 for: imageURL,
                 documentURL: documentURL

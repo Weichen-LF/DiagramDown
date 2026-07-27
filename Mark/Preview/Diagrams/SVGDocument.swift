@@ -18,7 +18,7 @@ nonisolated struct RasterDiagramDocument: Hashable, Sendable {
     let intrinsicSize: CGSize
     let digest: String
 
-    init(data: Data, displayScale: CGFloat = 1) throws {
+    init(data: Data, displayScale: CGFloat) throws {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               CGImageSourceGetCount(source) > 0,
               let properties = CGImageSourceCopyPropertiesAtIndex(

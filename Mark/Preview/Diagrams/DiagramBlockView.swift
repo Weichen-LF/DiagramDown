@@ -18,6 +18,17 @@ private enum DiagramBlockState {
         guard case .rendered(let document) = self else { return nil }
         return document
     }
+
+    var isRendered: Bool {
+        if case .rendered = self { return true }
+        return false
+    }
+}
+
+private struct DiagramViewerPresentation: Identifiable {
+    let id = UUID()
+    let document: DiagramDocument
+    let preferredSize: CGSize
 }
 
 struct DiagramBlockView: View {
@@ -33,8 +44,7 @@ struct DiagramBlockView: View {
     let onSourceLineSelected: (Int) -> Void
 
     @State private var state = DiagramBlockState.idle
-    @State private var showsViewer = false
-    @State private var viewerPreferredSize = CGSize(width: 960, height: 640)
+    @State private var viewerPresentation: DiagramViewerPresentation?
     @AppStorage(DiagramToolRegistry.revisionPreferenceKey) private var toolRevision = 0
 
     var body: some View {
@@ -49,8 +59,10 @@ struct DiagramBlockView: View {
             if let document = state.document {
                 HStack(spacing: 6) {
                     Button {
-                        viewerPreferredSize = PreviewMediaViewerSizing.preferredSize()
-                        showsViewer = true
+                        viewerPresentation = DiagramViewerPresentation(
+                            document: document,
+                            preferredSize: PreviewMediaViewerSizing.preferredSize()
+                        )
                     } label: {
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
                     }
@@ -78,15 +90,13 @@ struct DiagramBlockView: View {
         .task(id: requestID) {
             await render()
         }
-        .sheet(isPresented: $showsViewer) {
-            if let document = state.document {
-                DiagramViewerView(
-                    document: document,
-                    title: kind == .mermaid ? "Mermaid Diagram" : "D2 Diagram",
-                    theme: theme,
-                    preferredSize: viewerPreferredSize
-                )
-            }
+        .sheet(item: $viewerPresentation) { presentation in
+            DiagramViewerView(
+                document: presentation.document,
+                title: kind == .mermaid ? "Mermaid Diagram" : "D2 Diagram",
+                theme: theme,
+                preferredSize: presentation.preferredSize
+            )
         }
     }
 
@@ -151,8 +161,6 @@ struct DiagramBlockView: View {
 
     private var requestID: String {
         [
-            blockID.rawValue,
-            String(revision),
             kind.rawValue,
             MarkdownParserService.digest(source),
             theme.id,
@@ -165,36 +173,21 @@ struct DiagramBlockView: View {
     private func render() async {
         // Keep the fenced source visible while the CLI work runs off the main
         // actor path through DiagramRenderCoordinator / ExternalProcessRunner.
-        if case .rendered = state {
-            // Re-render after an already-visible diagram (theme/tool change).
-        } else {
+        // Avoid flashing back to source while re-rendering an already-visible diagram.
+        if !state.isRendered {
             state = .rendering
         }
         let request = diagramRequest
-        let expectedBlockID = blockID
-        let expectedRevision = revision
 
         do {
             let result = try await DiagramRenderCoordinator.shared.render(request)
             try Task.checkCancellation()
-            guard result.blockID == expectedBlockID,
-                  result.revision == expectedRevision,
-                  blockID == expectedBlockID,
-                  revision == expectedRevision else {
-                return
-            }
             state = .rendered(result.document)
         } catch is CancellationError {
             return
         } catch is DiagramToolResolutionError {
-            guard blockID == expectedBlockID, revision == expectedRevision else {
-                return
-            }
             state = .unavailable
         } catch {
-            guard blockID == expectedBlockID, revision == expectedRevision else {
-                return
-            }
             state = .failed(message: error.localizedDescription)
         }
     }
@@ -278,66 +271,21 @@ private struct DiagramViewerView: View {
     let theme: PreviewTheme
     let preferredSize: CGSize
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var zoom: CGFloat = 1
-    @State private var gestureStartZoom: CGFloat = 1
-
     var body: some View {
-        ZStack {
-            // Establish the sheet's ideal size for `.fitted` presentation sizing.
-            // ScrollView content alone is often much smaller than the parent window.
-            Color.clear
-                .frame(width: preferredSize.width, height: preferredSize.height)
-
-            VStack(spacing: 0) {
-                HStack {
-                    Text(title)
-                        .font(.headline)
-                    Spacer()
-                    Button("Fit") { zoom = 1 }
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .keyboardShortcut(.cancelAction)
-                }
-                .padding()
-
-                Divider()
-
-                ScrollView([.horizontal, .vertical]) {
-                    NativeDiagramView(
-                        document: document,
-                        background: theme.background
-                    )
-                        .frame(
-                            width: max(document.intrinsicSize.width * zoom, 100),
-                            height: max(document.intrinsicSize.height * zoom, 100)
-                        )
-                        .padding(24)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(theme.background)
-                .simultaneousGesture(
-                    MagnifyGesture()
-                        .onChanged { value in
-                            zoom = min(max(gestureStartZoom * value.magnification, 0.25), 4)
-                        }
-                        .onEnded { _ in
-                            gestureStartZoom = zoom
-                        }
-                )
-            }
+        PreviewMediaViewerChrome(
+            title: title,
+            preferredSize: preferredSize,
+            background: theme.background,
+            contentSize: document.intrinsicSize
+        ) { zoom in
+            NativeDiagramView(
+                document: document,
+                background: theme.background
+            )
+            .frame(
+                width: max(document.intrinsicSize.width * zoom, 100),
+                height: max(document.intrinsicSize.height * zoom, 100)
+            )
         }
-        .frame(
-            minWidth: 640,
-            idealWidth: preferredSize.width,
-            maxWidth: .infinity,
-            minHeight: 480,
-            idealHeight: preferredSize.height,
-            maxHeight: .infinity
-        )
-        .presentationSizing(.fitted)
     }
 }

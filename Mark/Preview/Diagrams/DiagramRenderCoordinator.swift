@@ -359,6 +359,7 @@ actor DiagramRenderCoordinator {
                 tool.cacheDescriptor,
                 request.configuration.mermaidTheme.rawValue,
                 request.configuration.appearance,
+                "\(MermaidRenderService.pngScale)",
             ]
         }
 

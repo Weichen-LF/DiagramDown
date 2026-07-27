@@ -277,29 +277,29 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
 
         func insertImage(documentURL: URL?, workspaceRootURL: URL) {
-            guard textView != nil else {
-                return
-            }
-            switch MarkdownImagePicker.choose(
-                documentURL: documentURL,
-                workspaceRootURL: workspaceRootURL
-            ) {
-            case .success(let insertion):
-                guard let textView else {
-                    return
-                }
-                apply(
-                    MarkdownImageInsertion.insert(
-                        alt: insertion.alt,
-                        path: insertion.path,
-                        into: textView.string,
-                        selection: textView.selectedRange()
-                    )
+            Task { @MainActor in
+                let result = await MarkdownImagePicker.choose(
+                    documentURL: documentURL,
+                    workspaceRootURL: workspaceRootURL
                 )
-            case .failure(.cancelled):
-                return
-            case .failure(let error):
-                showFormattingError(error)
+                switch result {
+                case .success(let insertion):
+                    guard let textView else {
+                        return
+                    }
+                    apply(
+                        MarkdownImageInsertion.insert(
+                            alt: insertion.alt,
+                            path: insertion.path,
+                            into: textView.string,
+                            selection: textView.selectedRange()
+                        )
+                    )
+                case .failure(.cancelled):
+                    return
+                case .failure(let error):
+                    showFormattingError(error)
+                }
             }
         }
 

@@ -6,6 +6,12 @@
 import AppKit
 import SwiftUI
 
+private struct PreviewImageViewerPresentation: Identifiable {
+    let id = UUID()
+    let image: NSImage
+    let preferredSize: CGSize
+}
+
 struct PreviewImageView: View {
     let image: PreviewImage
     let documentURL: URL?
@@ -15,8 +21,7 @@ struct PreviewImageView: View {
 
     @State private var loadedImage: NSImage?
     @State private var failure: String?
-    @State private var showsViewer = false
-    @State private var viewerPreferredSize = CGSize(width: 960, height: 640)
+    @State private var viewerPresentation: PreviewImageViewerPresentation?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -42,10 +47,12 @@ struct PreviewImageView: View {
                 }
             }
 
-            if loadedImage != nil {
+            if let loadedImage {
                 Button {
-                    viewerPreferredSize = PreviewMediaViewerSizing.preferredSize()
-                    showsViewer = true
+                    viewerPresentation = PreviewImageViewerPresentation(
+                        image: loadedImage,
+                        preferredSize: PreviewMediaViewerSizing.preferredSize()
+                    )
                 } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                 }
@@ -58,15 +65,13 @@ struct PreviewImageView: View {
         .task(id: requestID) {
             await load()
         }
-        .sheet(isPresented: $showsViewer) {
-            if let loadedImage {
-                PreviewImageViewerView(
-                    image: loadedImage,
-                    title: image.alt.isEmpty ? "Image" : image.alt,
-                    preferredSize: viewerPreferredSize,
-                    background: theme.background
-                )
-            }
+        .sheet(item: $viewerPresentation) { presentation in
+            PreviewImageViewerView(
+                image: presentation.image,
+                title: image.alt.isEmpty ? "Image" : image.alt,
+                preferredSize: presentation.preferredSize,
+                background: theme.background
+            )
         }
     }
 

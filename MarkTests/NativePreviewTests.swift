@@ -723,3 +723,44 @@ final class NativePreviewDiagramTests: XCTestCase {
         return contents.split(separator: " ").map(String.init)
     }
 }
+
+final class PreviewMediaViewerSizingTests: XCTestCase {
+    func testFitZoomFallsBackToActualSizeForZeroViewport() {
+        XCTAssertEqual(
+            PreviewMediaViewerSizing.fitZoom(
+                contentSize: CGSize(width: 2_000, height: 1_000),
+                viewportSize: .zero
+            ),
+            1
+        )
+        XCTAssertEqual(
+            PreviewMediaViewerSizing.fitZoom(
+                contentSize: CGSize(width: 2_000, height: 1_000),
+                viewportSize: CGSize(width: 800, height: 0)
+            ),
+            1
+        )
+    }
+
+    func testFitZoomScalesDownWhenContentExceedsViewport() {
+        // Viewport 848×648 → available 800×600 after 24pt padding on each side.
+        XCTAssertEqual(
+            PreviewMediaViewerSizing.fitZoom(
+                contentSize: CGSize(width: 1_600, height: 1_200),
+                viewportSize: CGSize(width: 848, height: 648)
+            ),
+            0.5,
+            accuracy: 0.000_1
+        )
+    }
+
+    func testFitZoomDoesNotUpscaleSmallerContent() {
+        XCTAssertEqual(
+            PreviewMediaViewerSizing.fitZoom(
+                contentSize: CGSize(width: 100, height: 80),
+                viewportSize: CGSize(width: 848, height: 648)
+            ),
+            1
+        )
+    }
+}

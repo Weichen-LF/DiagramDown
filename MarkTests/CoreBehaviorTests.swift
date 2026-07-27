@@ -768,6 +768,54 @@ final class MarkdownImageInsertionTests: XCTestCase {
         )
         XCTAssertEqual(path, "../assets/my%20photo.png")
     }
+
+    func testPercentEncodesParenthesesInRelativePath() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let docs = root.appendingPathComponent("docs", isDirectory: true)
+        let assets = root.appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        let image = assets.appendingPathComponent("photo (1).png")
+        try Data([0x89]).write(to: image)
+
+        let path = MarkdownImageInsertion.relativeMarkdownPath(
+            from: docs,
+            to: image
+        )
+        XCTAssertEqual(path, "../assets/photo%20%281%29.png")
+        XCTAssertEqual(
+            MarkdownImageInsertion.markdown(alt: "photo (1)", path: path),
+            "![photo (1)](../assets/photo%20%281%29.png)"
+        )
+    }
+
+    func testAltTextEscapesBracketsFromFileName() {
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "[draft] logo"),
+            "\\[draft\\] logo"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.markdown(
+                alt: MarkdownImageInsertion.altText(fromFileName: "[draft] logo"),
+                path: "assets/draft.png"
+            ),
+            "![\\[draft\\] logo](assets/draft.png)"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "plain-name"),
+            "plain-name"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "back\\slash"),
+            "back\\\\slash"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "a\\[b]"),
+            "a\\\\\\[b\\]"
+        )
+    }
 }
 
 final class MarkdownFileCodecTests: XCTestCase {
