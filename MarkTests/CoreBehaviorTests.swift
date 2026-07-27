@@ -46,6 +46,14 @@ final class DocumentViewModeTests: XCTestCase {
             XCTAssertFalse(mode.systemImage.isEmpty)
         }
     }
+
+    func testNewBuffersDefaultToPreviewOnly() {
+        let buffer = OpenFileBuffer(
+            url: URL(fileURLWithPath: "/tmp/notes.md"),
+            text: "# Hello"
+        )
+        XCTAssertEqual(buffer.storedViewMode, DocumentViewMode.previewOnly.rawValue)
+    }
 }
 
 @MainActor
@@ -674,6 +682,139 @@ final class MarkdownEditTransformerTests: XCTestCase {
         )
         XCTAssertTrue(table.text.contains("| Column 1 | Column 2 |"))
         XCTAssertTrue(table.text.contains("| --- | --- |"))
+    }
+
+    func testInsertImageMarkdownAtCaret() {
+        let result = MarkdownImageInsertion.insert(
+            alt: "photo",
+            path: "assets/photo.png",
+            into: "before",
+            selection: NSRange(location: 6, length: 0)
+        )
+        XCTAssertEqual(result.text, "before\n![photo](assets/photo.png)")
+        XCTAssertEqual(
+            (result.text as NSString).substring(with: result.selection),
+            "![photo](assets/photo.png)"
+        )
+    }
+}
+
+final class MarkdownImageInsertionTests: XCTestCase {
+    func testRelativePathFromNestedDocumentToAssets() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let docs = root.appendingPathComponent("docs", isDirectory: true)
+        let assets = root.appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        let image = assets.appendingPathComponent("diagram.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: image)
+
+        let path = MarkdownImageInsertion.relativeMarkdownPath(
+            from: docs,
+            to: image
+        )
+        XCTAssertEqual(path, "../assets/diagram.png")
+    }
+
+    func testCopyIntoAssetsUsesUniqueNames() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let sourceDir = root.appendingPathComponent("source", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        let source = sourceDir.appendingPathComponent("photo.png")
+        try Data([0x01, 0x02, 0x03]).write(to: source)
+
+        let first = try MarkdownImageInsertion.copyIntoAssets(
+            sourceURL: source,
+            workspaceRootURL: root
+        )
+        let second = try MarkdownImageInsertion.copyIntoAssets(
+            sourceURL: source,
+            workspaceRootURL: root
+        )
+
+        XCTAssertEqual(first.lastPathComponent, "photo.png")
+        XCTAssertEqual(second.lastPathComponent, "photo-1.png")
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("assets/photo.png").path
+            )
+        )
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("assets/photo-1.png").path
+            )
+        )
+    }
+
+    func testPercentEncodesSpacesInRelativePath() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let docs = root.appendingPathComponent("docs", isDirectory: true)
+        let assets = root.appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        let image = assets.appendingPathComponent("my photo.png")
+        try Data([0x89]).write(to: image)
+
+        let path = MarkdownImageInsertion.relativeMarkdownPath(
+            from: docs,
+            to: image
+        )
+        XCTAssertEqual(path, "../assets/my%20photo.png")
+    }
+
+    func testPercentEncodesParenthesesInRelativePath() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let docs = root.appendingPathComponent("docs", isDirectory: true)
+        let assets = root.appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        let image = assets.appendingPathComponent("photo (1).png")
+        try Data([0x89]).write(to: image)
+
+        let path = MarkdownImageInsertion.relativeMarkdownPath(
+            from: docs,
+            to: image
+        )
+        XCTAssertEqual(path, "../assets/photo%20%281%29.png")
+        XCTAssertEqual(
+            MarkdownImageInsertion.markdown(alt: "photo (1)", path: path),
+            "![photo (1)](../assets/photo%20%281%29.png)"
+        )
+    }
+
+    func testAltTextEscapesBracketsFromFileName() {
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "[draft] logo"),
+            "\\[draft\\] logo"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.markdown(
+                alt: MarkdownImageInsertion.altText(fromFileName: "[draft] logo"),
+                path: "assets/draft.png"
+            ),
+            "![\\[draft\\] logo](assets/draft.png)"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "plain-name"),
+            "plain-name"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "back\\slash"),
+            "back\\\\slash"
+        )
+        XCTAssertEqual(
+            MarkdownImageInsertion.altText(fromFileName: "a\\[b]"),
+            "a\\\\\\[b\\]"
+        )
     }
 }
 

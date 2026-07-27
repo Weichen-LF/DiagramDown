@@ -90,6 +90,15 @@ nonisolated enum MarkdownEditTransformer {
         }
     }
 
+    static func insertImage(
+        _ markdown: String,
+        source: String,
+        selection: NSRange
+    ) -> MarkdownEditResult {
+        let safeSelection = selection.clamped(to: (source as NSString).length)
+        return insertBlock(markdown, source: source, selection: safeSelection)
+    }
+
     private static func wrap(
         _ prefix: String,
         _ suffix: String,

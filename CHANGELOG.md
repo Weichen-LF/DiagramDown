@@ -6,6 +6,24 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-27
+
+### Added
+
+- Edit > Markdown > Insert Image… opens a file picker, optionally copies into
+  the workspace `assets/` folder, and inserts a document-relative Markdown image
+- Mermaid and D2 diagram viewer sheets are resizable and open near the size of
+  the parent window
+- Local Markdown images open in a resizable viewer sheet, like diagrams
+
+### Changed
+
+- Mermaid PNG previews render at 2× scale for sharper text and edges while
+  keeping on-screen layout size unchanged
+- Newly opened Markdown files default to Preview Only
+- Mermaid and D2 blocks show their fenced source first, then replace it when
+  rendering finishes
+
 ## [0.24.0] - 2026-07-26
 
 ### Added

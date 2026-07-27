@@ -43,7 +43,7 @@ actor DiagramRenderCoordinator {
     private var cacheCost = 0
     private let maximumEntries = 128
     private let maximumMemoryCacheBytes = 64 * 1_024 * 1_024
-    private let maximumCachedOutputBytes = 8 * 1_024 * 1_024
+    private let maximumCachedOutputBytes = 16 * 1_024 * 1_024
     private let maximumDiskCacheBytes = 256 * 1_024 * 1_024
     private let diskCacheTrimTargetBytes = 224 * 1_024 * 1_024
     private let diskCacheDirectoryURL: URL?
@@ -118,7 +118,12 @@ actor DiagramRenderCoordinator {
                 appearance: request.configuration.appearance,
                 tool: tool
             )
-            document = .raster(try RasterDiagramDocument(data: png))
+            document = .raster(
+                try RasterDiagramDocument(
+                    data: png,
+                    displayScale: CGFloat(MermaidRenderService.pngScale)
+                )
+            )
         }
         try Task.checkCancellation()
 
@@ -202,7 +207,10 @@ actor DiagramRenderCoordinator {
             )
             switch kind {
             case .mermaid:
-                guard let raster = try? RasterDiagramDocument(data: data) else {
+                guard let raster = try? RasterDiagramDocument(
+                    data: data,
+                    displayScale: CGFloat(MermaidRenderService.pngScale)
+                ) else {
                     try? FileManager.default.removeItem(at: url)
                     return nil
                 }
@@ -351,6 +359,7 @@ actor DiagramRenderCoordinator {
                 tool.cacheDescriptor,
                 request.configuration.mermaidTheme.rawValue,
                 request.configuration.appearance,
+                "\(MermaidRenderService.pngScale)",
             ]
         }
 

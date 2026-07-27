@@ -32,7 +32,7 @@ nonisolated enum MermaidRenderError: LocalizedError, Sendable {
         case .outputMissing:
             "Mermaid CLI finished without producing an output file."
         case .outputTooLarge:
-            "The generated Mermaid output exceeds the 8 MB preview limit."
+            "The generated Mermaid output exceeds the 16 MB preview limit."
         case .invalidSVG:
             "Mermaid CLI produced an invalid SVG document."
         }
@@ -41,10 +41,11 @@ nonisolated enum MermaidRenderError: LocalizedError, Sendable {
 
 actor MermaidRenderService {
     static let shared = MermaidRenderService()
-    nonisolated static let rendererVersion = "local-mmdc-png-v1"
+    nonisolated static let rendererVersion = "local-mmdc-png-v2"
+    nonisolated static let pngScale = 2
 
     private static let maximumInputBytes = 256 * 1_024
-    private static let maximumOutputBytes = 8 * 1_024 * 1_024
+    private static let maximumOutputBytes = 16 * 1_024 * 1_024
     private let runner: ExternalProcessRunner
 
     init(runner: ExternalProcessRunner = .shared) {
@@ -108,16 +109,21 @@ actor MermaidRenderService {
         let outputURL = directory.appendingPathComponent("output.\(outputExtension)")
         try source.write(to: inputURL, atomically: true, encoding: .utf8)
 
+        var arguments = [
+            "-i", inputURL.path,
+            "-o", outputURL.path,
+            "-t", theme.rawValue,
+            "-b", "transparent",
+        ]
+        if outputExtension == "png" {
+            arguments.append(contentsOf: ["-s", "\(Self.pngScale)"])
+        }
+
         let result: ExternalProcessResult
         do {
             result = try await runner.run(
                 executableURL: installedTool.executableURL,
-                arguments: [
-                    "-i", inputURL.path,
-                    "-o", outputURL.path,
-                    "-t", theme.rawValue,
-                    "-b", "transparent",
-                ],
+                arguments: arguments,
                 currentDirectoryURL: directory,
                 environment: ExternalProcessRunner.defaultEnvironment(
                     temporaryDirectory: directory

@@ -6,6 +6,12 @@
 import AppKit
 import SwiftUI
 
+private struct PreviewImageViewerPresentation: Identifiable {
+    let id = UUID()
+    let image: NSImage
+    let preferredSize: CGSize
+}
+
 struct PreviewImageView: View {
     let image: PreviewImage
     let documentURL: URL?
@@ -15,31 +21,57 @@ struct PreviewImageView: View {
 
     @State private var loadedImage: NSImage?
     @State private var failure: String?
+    @State private var viewerPresentation: PreviewImageViewerPresentation?
 
     var body: some View {
-        Group {
+        ZStack(alignment: .topTrailing) {
+            Group {
+                if let loadedImage {
+                    Image(nsImage: loadedImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 7 * metrics.zoom))
+                        .accessibilityLabel(image.alt.isEmpty ? "Image" : image.alt)
+                } else if let failure {
+                    Label(failure, systemImage: "photo.badge.exclamationmark")
+                        .font(.system(size: metrics.bodyFontSize))
+                        .foregroundStyle(theme.secondaryText)
+                        .padding(metrics.codeInset)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(theme.subtleBackground)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, minHeight: 64 * metrics.zoom)
+                }
+            }
+
             if let loadedImage {
-                Image(nsImage: loadedImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 7 * metrics.zoom))
-                    .accessibilityLabel(image.alt.isEmpty ? "Image" : image.alt)
-            } else if let failure {
-                Label(failure, systemImage: "photo.badge.exclamationmark")
-                    .font(.system(size: metrics.bodyFontSize))
-                    .foregroundStyle(theme.secondaryText)
-                    .padding(metrics.codeInset)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(theme.subtleBackground)
-            } else {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity, minHeight: 64 * metrics.zoom)
+                Button {
+                    viewerPresentation = PreviewImageViewerPresentation(
+                        image: loadedImage,
+                        preferredSize: PreviewMediaViewerSizing.preferredSize()
+                    )
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .padding(8)
+                .help("Open Image Preview")
             }
         }
         .task(id: requestID) {
             await load()
+        }
+        .sheet(item: $viewerPresentation) { presentation in
+            PreviewImageViewerView(
+                image: presentation.image,
+                title: image.alt.isEmpty ? "Image" : image.alt,
+                preferredSize: presentation.preferredSize,
+                background: theme.background
+            )
         }
     }
 
@@ -56,7 +88,7 @@ struct PreviewImageView: View {
             let image = image
             let documentURL = documentURL
             let workspaceRootURL = workspaceRootURL
-            let data = try await Task.detached {
+            let data = try await Task.detached(priority: .utility) {
                 try PreviewImageResolver.data(
                     for: image,
                     documentURL: documentURL,

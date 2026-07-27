@@ -19,6 +19,17 @@ final class MarkdownEditorController: ObservableObject {
     func perform(_ action: MarkdownEditAction) {
         coordinator?.perform(action)
     }
+
+    func apply(_ result: MarkdownEditResult) {
+        coordinator?.apply(result)
+    }
+
+    func insertImage(documentURL: URL?, workspaceRootURL: URL) {
+        coordinator?.insertImage(
+            documentURL: documentURL,
+            workspaceRootURL: workspaceRootURL
+        )
+    }
 }
 
 struct MarkdownEditorView: NSViewRepresentable {
@@ -242,11 +253,19 @@ struct MarkdownEditorView: NSViewRepresentable {
             guard let textView else {
                 return
             }
-            let result = MarkdownEditTransformer.apply(
-                action,
-                to: textView.string,
-                selection: textView.selectedRange()
+            apply(
+                MarkdownEditTransformer.apply(
+                    action,
+                    to: textView.string,
+                    selection: textView.selectedRange()
+                )
             )
+        }
+
+        func apply(_ result: MarkdownEditResult) {
+            guard let textView else {
+                return
+            }
             let replacementRange = NSRange(
                 location: 0,
                 length: (textView.string as NSString).length
@@ -255,6 +274,33 @@ struct MarkdownEditorView: NSViewRepresentable {
             textView.insertText(result.text, replacementRange: replacementRange)
             textView.setSelectedRange(result.selection)
             textView.breakUndoCoalescing()
+        }
+
+        func insertImage(documentURL: URL?, workspaceRootURL: URL) {
+            Task { @MainActor in
+                let result = await MarkdownImagePicker.choose(
+                    documentURL: documentURL,
+                    workspaceRootURL: workspaceRootURL
+                )
+                switch result {
+                case .success(let insertion):
+                    guard let textView else {
+                        return
+                    }
+                    apply(
+                        MarkdownImageInsertion.insert(
+                            alt: insertion.alt,
+                            path: insertion.path,
+                            into: textView.string,
+                            selection: textView.selectedRange()
+                        )
+                    )
+                case .failure(.cancelled):
+                    return
+                case .failure(let error):
+                    showFormattingError(error)
+                }
+            }
         }
 
         private func showFormattingError(_ error: Error) {

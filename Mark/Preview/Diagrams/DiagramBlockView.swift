@@ -18,6 +18,17 @@ private enum DiagramBlockState {
         guard case .rendered(let document) = self else { return nil }
         return document
     }
+
+    var isRendered: Bool {
+        if case .rendered = self { return true }
+        return false
+    }
+}
+
+private struct DiagramViewerPresentation: Identifiable {
+    let id = UUID()
+    let document: DiagramDocument
+    let preferredSize: CGSize
 }
 
 struct DiagramBlockView: View {
@@ -33,7 +44,7 @@ struct DiagramBlockView: View {
     let onSourceLineSelected: (Int) -> Void
 
     @State private var state = DiagramBlockState.idle
-    @State private var showsViewer = false
+    @State private var viewerPresentation: DiagramViewerPresentation?
     @AppStorage(DiagramToolRegistry.revisionPreferenceKey) private var toolRevision = 0
 
     var body: some View {
@@ -48,7 +59,10 @@ struct DiagramBlockView: View {
             if let document = state.document {
                 HStack(spacing: 6) {
                     Button {
-                        showsViewer = true
+                        viewerPresentation = DiagramViewerPresentation(
+                            document: document,
+                            preferredSize: PreviewMediaViewerSizing.preferredSize()
+                        )
                     } label: {
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
                     }
@@ -76,29 +90,35 @@ struct DiagramBlockView: View {
         .task(id: requestID) {
             await render()
         }
-        .sheet(isPresented: $showsViewer) {
-            if let document = state.document {
-                DiagramViewerView(
-                    document: document,
-                    title: kind == .mermaid ? "Mermaid Diagram" : "D2 Diagram",
-                    theme: theme
-                )
-            }
+        .sheet(item: $viewerPresentation) { presentation in
+            DiagramViewerView(
+                document: presentation.document,
+                title: kind == .mermaid ? "Mermaid Diagram" : "D2 Diagram",
+                theme: theme,
+                preferredSize: presentation.preferredSize
+            )
         }
     }
 
     @ViewBuilder
     private var diagramContent: some View {
         switch state {
-        case .idle:
-            ProgressView()
-                .controlSize(.small)
-                .frame(minHeight: 100 * metrics.zoom)
-
-        case .rendering:
-            ProgressView()
-                .controlSize(.small)
-                .frame(minHeight: 100 * metrics.zoom)
+        case .idle, .rendering:
+            ZStack(alignment: .topTrailing) {
+                CodeBlockView(
+                    source: source,
+                    language: nil,
+                    rawLanguage: kind.rawValue,
+                    theme: theme,
+                    metrics: metrics
+                )
+                if case .rendering = state {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(8)
+                        .help("Rendering diagram…")
+                }
+            }
 
         case .rendered(let document):
             NativeDiagramView(
@@ -124,12 +144,18 @@ struct DiagramBlockView: View {
 
         case .failed(let message):
             VStack(alignment: .leading, spacing: 8) {
+                CodeBlockView(
+                    source: source,
+                    language: nil,
+                    rawLanguage: kind.rawValue,
+                    theme: theme,
+                    metrics: metrics
+                )
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.system(size: metrics.bodyFontSize))
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
             }
-            .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
         }
     }
 
@@ -145,15 +171,17 @@ struct DiagramBlockView: View {
 
     @MainActor
     private func render() async {
-        state = .rendering
+        // Keep the fenced source visible while the CLI work runs off the main
+        // actor path through DiagramRenderCoordinator / ExternalProcessRunner.
+        // Avoid flashing back to source while re-rendering an already-visible diagram.
+        if !state.isRendered {
+            state = .rendering
+        }
         let request = diagramRequest
 
         do {
             let result = try await DiagramRenderCoordinator.shared.render(request)
             try Task.checkCancellation()
-            guard result.blockID == blockID, result.revision == revision else {
-                return
-            }
             state = .rendered(result.document)
         } catch is CancellationError {
             return
@@ -241,51 +269,23 @@ private struct DiagramViewerView: View {
     let document: DiagramDocument
     let title: String
     let theme: PreviewTheme
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var zoom: CGFloat = 1
-    @State private var gestureStartZoom: CGFloat = 1
+    let preferredSize: CGSize
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(title)
-                    .font(.headline)
-                Spacer()
-                Button("Fit") { zoom = 1 }
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .keyboardShortcut(.cancelAction)
-            }
-            .padding()
-
-            Divider()
-
-            ScrollView([.horizontal, .vertical]) {
-                NativeDiagramView(
-                    document: document,
-                    background: theme.background
-                )
-                    .frame(
-                        width: max(document.intrinsicSize.width * zoom, 100),
-                        height: max(document.intrinsicSize.height * zoom, 100)
-                    )
-                    .padding(24)
-            }
-            .background(theme.background)
-            .simultaneousGesture(
-                MagnifyGesture()
-                    .onChanged { value in
-                        zoom = min(max(gestureStartZoom * value.magnification, 0.25), 4)
-                    }
-                    .onEnded { _ in
-                        gestureStartZoom = zoom
-                    }
+        PreviewMediaViewerChrome(
+            title: title,
+            preferredSize: preferredSize,
+            background: theme.background,
+            contentSize: document.intrinsicSize
+        ) { zoom in
+            NativeDiagramView(
+                document: document,
+                background: theme.background
+            )
+            .frame(
+                width: max(document.intrinsicSize.width * zoom, 100),
+                height: max(document.intrinsicSize.height * zoom, 100)
             )
         }
-        .frame(minWidth: 720, minHeight: 520)
     }
 }
