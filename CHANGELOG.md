@@ -6,6 +6,19 @@ The project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-07-27
+
+### Added
+
+- Sidebar directory tree auto-refreshes when files or folders change on disk
+- Active-line highlighting in the Markdown editor, similar to JetBrains IDEs
+- Settings option to render Mermaid with `mmdc` (PNG) or `mmdr` (SVG)
+
+### Changed
+
+- Diagram Tools settings list both Mermaid CLI (`mmdc`) and `mmdr`, with install
+  guidance for each
+
 ## [0.25.0] - 2026-07-27
 
 ### Added

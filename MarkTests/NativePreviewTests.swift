@@ -571,6 +571,44 @@ final class NativePreviewDiagramTests: XCTestCase {
         XCTAssertTrue(rawSVG.contains("default mmdc output"))
     }
 
+    func testLocalMmdrCLIProducesSanitizedSVGPreview() async throws {
+        let fixture = try makeFakeMmdrCLI()
+        defer { try? FileManager.default.removeItem(at: fixture.directory) }
+        let registry = DiagramToolRegistry(
+            automaticDirectories: [fixture.directory]
+        )
+        let coordinator = DiagramRenderCoordinator(
+            toolRegistry: registry,
+            diskCacheDirectoryURL: fixture.directory
+                .appendingPathComponent("diagram-cache", isDirectory: true)
+        )
+        let result = try await coordinator.render(
+            DiagramRenderRequest(
+                blockID: PreviewBlockID(rawValue: "mmdr"),
+                revision: 1,
+                kind: .mermaid,
+                source: "flowchart LR\n  A --> B",
+                configuration: DiagramConfiguration(
+                    mermaidRenderer: .mmdr,
+                    mermaidTheme: .default,
+                    appearance: "light",
+                    d2: .preview
+                )
+            )
+        )
+        let capturedArguments = try loadCapturedArguments(in: fixture.directory)
+
+        guard case .svg(let document) = result.document else {
+            return XCTFail("Expected an SVG Mermaid preview from mmdr.")
+        }
+        XCTAssertTrue(capturedArguments.contains("-e"))
+        XCTAssertTrue(capturedArguments.contains("svg"))
+        XCTAssertFalse(document.sanitizedXML.localizedCaseInsensitiveContains("script"))
+        XCTAssertTrue(document.sanitizedXML.contains("mmdr output"))
+        XCTAssertGreaterThan(document.intrinsicSize.width, 0)
+        XCTAssertGreaterThan(document.intrinsicSize.height, 0)
+    }
+
     func testDiagramCacheKeyTracksContentAndThemeButNotViewRevision() async throws {
         let fixture = try makeFakeMermaidCLI()
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
@@ -583,6 +621,7 @@ final class NativePreviewDiagramTests: XCTestCase {
                 .appendingPathComponent("diagram-cache", isDirectory: true)
         )
         let configuration = DiagramConfiguration(
+            mermaidRenderer: .mmdc,
             mermaidTheme: .default,
             appearance: "light",
             d2: .preview
@@ -612,6 +651,7 @@ final class NativePreviewDiagramTests: XCTestCase {
                 kind: .mermaid,
                 source: "flowchart LR\n  Cache --> Hit",
                 configuration: DiagramConfiguration(
+                    mermaidRenderer: .mmdc,
                     mermaidTheme: .dark,
                     appearance: "dark",
                     d2: .preview
@@ -643,6 +683,7 @@ final class NativePreviewDiagramTests: XCTestCase {
                 kind: .mermaid,
                 source: "flowchart LR\n  Cache --> Purge",
                 configuration: DiagramConfiguration(
+                    mermaidRenderer: .mmdc,
                     mermaidTheme: .default,
                     appearance: "light",
                     d2: .preview
@@ -707,6 +748,43 @@ final class NativePreviewDiagramTests: XCTestCase {
           *.svg) printf '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="80"><foreignObject width="160" height="80"><div xmlns="http://www.w3.org/1999/xhtml">default mmdc output</div></foreignObject></svg>' > "$output" ;;
           *) exit 9 ;;
         esac
+        """
+        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executable.path
+        )
+        return (directory, executable)
+    }
+
+    private func makeFakeMmdrCLI() throws -> (
+        directory: URL,
+        executable: URL
+    ) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        let executable = directory.appendingPathComponent("mmdr")
+        let argumentsURL = directory.appendingPathComponent("arguments.txt")
+        let script = """
+        #!/bin/sh
+        if [ "$1" = "--version" ]; then
+          printf '0.2.2\\n'
+          exit 0
+        fi
+        printf '%s\\n' "$*" > "\(argumentsURL.path)"
+        output=""
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            -o|--output) output="$2"; shift 2 ;;
+            *) shift ;;
+          esac
+        done
+        [ -n "$output" ] || exit 8
+        printf '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><text>mmdr output</text></svg>' > "$output"
         """
         try script.write(to: executable, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(

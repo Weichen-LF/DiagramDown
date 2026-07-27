@@ -164,6 +164,7 @@ struct DiagramBlockView: View {
             kind.rawValue,
             MarkdownParserService.digest(source),
             theme.id,
+            configuration.mermaidRenderer.rawValue,
             configuration.d2.cacheDescriptor,
             String(toolRevision),
         ].joined(separator: ":")
@@ -200,6 +201,7 @@ struct DiagramBlockView: View {
             kind: kind,
             source: source,
             configuration: DiagramConfiguration(
+                mermaidRenderer: configuration.mermaidRenderer,
                 mermaidTheme: dark
                     ? configuration.mermaidDarkTheme
                     : configuration.mermaidLightTheme,

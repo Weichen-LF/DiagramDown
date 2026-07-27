@@ -41,8 +41,12 @@ nonisolated enum MermaidRenderError: LocalizedError, Sendable {
 
 actor MermaidRenderService {
     static let shared = MermaidRenderService()
-    nonisolated static let rendererVersion = "local-mmdc-png-v2"
+    nonisolated static let mmdcRendererVersion = "local-mmdc-png-v2"
+    nonisolated static let mmdrRendererVersion = "local-mmdr-svg-v1"
     nonisolated static let pngScale = 2
+
+    /// Kept for call sites that still refer to the historical mmdc cache token.
+    nonisolated static var rendererVersion: String { mmdcRendererVersion }
 
     private static let maximumInputBytes = 256 * 1_024
     private static let maximumOutputBytes = 16 * 1_024 * 1_024
@@ -61,6 +65,7 @@ actor MermaidRenderService {
         try await render(
             source: source,
             theme: theme,
+            engine: .mmdc,
             outputExtension: "png",
             tool: tool
         )
@@ -69,11 +74,13 @@ actor MermaidRenderService {
     func renderSVG(
         source: String,
         theme: MermaidPreviewTheme,
+        engine: MermaidRendererEngine = .mmdc,
         tool: InstalledDiagramTool? = nil
     ) async throws -> String {
         let data = try await render(
             source: source,
             theme: theme,
+            engine: engine,
             outputExtension: "svg",
             tool: tool
         )
@@ -88,6 +95,7 @@ actor MermaidRenderService {
     private func render(
         source: String,
         theme: MermaidPreviewTheme,
+        engine: MermaidRendererEngine,
         outputExtension: String,
         tool: InstalledDiagramTool?
     ) async throws -> Data {
@@ -100,7 +108,9 @@ actor MermaidRenderService {
         if let tool {
             installedTool = tool
         } else {
-            installedTool = try await DiagramToolRegistry.shared.installedTool(for: .mermaid)
+            installedTool = try await DiagramToolRegistry.shared.installedTool(
+                for: engine.toolKind
+            )
         }
 
         let directory = try makeTemporaryDirectory()
@@ -109,14 +119,25 @@ actor MermaidRenderService {
         let outputURL = directory.appendingPathComponent("output.\(outputExtension)")
         try source.write(to: inputURL, atomically: true, encoding: .utf8)
 
-        var arguments = [
-            "-i", inputURL.path,
-            "-o", outputURL.path,
-            "-t", theme.rawValue,
-            "-b", "transparent",
-        ]
-        if outputExtension == "png" {
-            arguments.append(contentsOf: ["-s", "\(Self.pngScale)"])
+        let arguments: [String]
+        switch engine {
+        case .mmdc:
+            var mmdcArguments = [
+                "-i", inputURL.path,
+                "-o", outputURL.path,
+                "-t", theme.rawValue,
+                "-b", "transparent",
+            ]
+            if outputExtension == "png" {
+                mmdcArguments.append(contentsOf: ["-s", "\(Self.pngScale)"])
+            }
+            arguments = mmdcArguments
+        case .mmdr:
+            arguments = [
+                "-i", inputURL.path,
+                "-o", outputURL.path,
+                "-e", outputExtension,
+            ]
         }
 
         let result: ExternalProcessResult

@@ -7,13 +7,15 @@ import Foundation
 
 nonisolated enum DiagramToolKind: String, CaseIterable, Identifiable, Sendable {
     case mermaid
+    case mmdr
     case d2
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .mermaid: "Mermaid CLI"
+        case .mermaid: "Mermaid CLI (mmdc)"
+        case .mmdr: "mmdr"
         case .d2: "D2 CLI"
         }
     }
@@ -21,6 +23,7 @@ nonisolated enum DiagramToolKind: String, CaseIterable, Identifiable, Sendable {
     var executableName: String {
         switch self {
         case .mermaid: "mmdc"
+        case .mmdr: "mmdr"
         case .d2: "d2"
         }
     }
@@ -28,6 +31,7 @@ nonisolated enum DiagramToolKind: String, CaseIterable, Identifiable, Sendable {
     var versionArguments: [String] {
         switch self {
         case .mermaid: ["--version"]
+        case .mmdr: ["--version"]
         case .d2: ["version"]
         }
     }
@@ -35,6 +39,7 @@ nonisolated enum DiagramToolKind: String, CaseIterable, Identifiable, Sendable {
     var installCommand: String {
         switch self {
         case .mermaid: "npm install -g @mermaid-js/mermaid-cli"
+        case .mmdr: "brew tap 1jehuang/mmdr && brew install mmdr"
         case .d2: "brew install d2"
         }
     }

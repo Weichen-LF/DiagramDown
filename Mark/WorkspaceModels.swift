@@ -580,6 +580,8 @@ final class WorkspaceSession: ObservableObject {
     private var externalChangeTask: Task<Void, Never>?
     private var bufferObservers: [OpenFileBuffer.ID: AnyCancellable] = [:]
     private var isRestoringRecovery = false
+    private var isRefreshingTree = false
+    private var lastVisibleTreeFingerprint: String?
 
     @Published private(set) var openFiles: [OpenFileBuffer] = []
     @Published var activeFileID: OpenFileBuffer.ID?
@@ -660,6 +662,7 @@ final class WorkspaceSession: ObservableObject {
         do {
             rootNodes = try await fileService.children(of: rootURL, within: rootURL)
             await loadRecoveredExpandedDirectories()
+            lastVisibleTreeFingerprint = visibleTreeFingerprint()
             treeErrorDescription = nil
         } catch {
             treeErrorDescription = error.localizedDescription
@@ -693,6 +696,7 @@ final class WorkspaceSession: ObservableObject {
                 of: directoryURL,
                 within: rootURL
             )
+            lastVisibleTreeFingerprint = visibleTreeFingerprint()
             treeErrorDescription = nil
         } catch {
             expandedDirectoryIDs.remove(node.id)
@@ -910,6 +914,7 @@ final class WorkspaceSession: ObservableObject {
                     return
                 }
                 await self?.checkForExternalChanges()
+                await self?.refreshVisibleTreeIfNeeded()
             }
         }
     }
@@ -1094,7 +1099,117 @@ final class WorkspaceSession: ObservableObject {
         childrenByDirectoryID = [:]
         loadingDirectoryIDs = []
         openingFileIDs = []
+        lastVisibleTreeFingerprint = nil
         await loadRoot()
+        lastVisibleTreeFingerprint = visibleTreeFingerprint()
+    }
+
+    /// Reloads the root and currently expanded directories when the workspace
+    /// filesystem changes outside DiagramDown (Finder, git, editors, etc.).
+    func refreshVisibleTreeIfNeeded() async {
+        guard !isRefreshingTree else {
+            return
+        }
+        isRefreshingTree = true
+        defer { isRefreshingTree = false }
+
+        do {
+            let nextRootNodes = try await fileService.children(
+                of: rootURL,
+                within: rootURL
+            )
+            var nextChildren: [FileTreeNode.ID: [FileTreeNode]] = [:]
+            var nextExpanded = expandedDirectoryIDs
+
+            let recoveredIDs = expandedDirectoryIDs.sorted {
+                $0.split(separator: "/").count < $1.split(separator: "/").count
+            }
+            for directoryID in recoveredIDs {
+                guard Self.isSafeRelativePath(directoryID) else {
+                    nextExpanded.remove(directoryID)
+                    continue
+                }
+                let directoryURL = rootURL.appendingPathComponent(
+                    directoryID,
+                    isDirectory: true
+                )
+                do {
+                    nextChildren[directoryID] = try await fileService.children(
+                        of: directoryURL,
+                        within: rootURL
+                    )
+                } catch {
+                    nextExpanded.remove(directoryID)
+                }
+            }
+
+            let fingerprint = Self.treeFingerprint(
+                rootNodes: nextRootNodes,
+                childrenByDirectoryID: nextChildren,
+                expandedDirectoryIDs: nextExpanded
+            )
+            guard fingerprint != lastVisibleTreeFingerprint else {
+                treeErrorDescription = nil
+                return
+            }
+
+            rootNodes = nextRootNodes
+            childrenByDirectoryID = nextChildren
+            if nextExpanded != expandedDirectoryIDs {
+                expandedDirectoryIDs = nextExpanded
+                scheduleRecoverySave()
+            }
+            lastVisibleTreeFingerprint = fingerprint
+            treeErrorDescription = nil
+            objectWillChange.send()
+        } catch {
+            treeErrorDescription = error.localizedDescription
+        }
+    }
+
+    private func visibleTreeFingerprint() -> String {
+        Self.treeFingerprint(
+            rootNodes: rootNodes,
+            childrenByDirectoryID: childrenByDirectoryID,
+            expandedDirectoryIDs: expandedDirectoryIDs
+        )
+    }
+
+    private static func treeFingerprint(
+        rootNodes: [FileTreeNode],
+        childrenByDirectoryID: [FileTreeNode.ID: [FileTreeNode]],
+        expandedDirectoryIDs: Set<FileTreeNode.ID>
+    ) -> String {
+        var parts: [String] = []
+        appendTreeFingerprint(
+            nodes: rootNodes,
+            childrenByDirectoryID: childrenByDirectoryID,
+            expandedDirectoryIDs: expandedDirectoryIDs,
+            to: &parts
+        )
+        return parts.joined(separator: "\n")
+    }
+
+    private static func appendTreeFingerprint(
+        nodes: [FileTreeNode],
+        childrenByDirectoryID: [FileTreeNode.ID: [FileTreeNode]],
+        expandedDirectoryIDs: Set<FileTreeNode.ID>,
+        to parts: inout [String]
+    ) {
+        for node in nodes {
+            parts.append("\(node.kind)|\(node.relativePath)")
+            guard node.isDirectory,
+                  expandedDirectoryIDs.contains(node.id),
+                  let children = childrenByDirectoryID[node.id] else {
+                continue
+            }
+            appendTreeFingerprint(
+                nodes: children,
+                childrenByDirectoryID: childrenByDirectoryID,
+                expandedDirectoryIDs: expandedDirectoryIDs,
+                to: &parts
+            )
+        }
     }
 
     private func updateOpenFileURLs(from sourceURL: URL, to destinationURL: URL) {

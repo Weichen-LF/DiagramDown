@@ -59,6 +59,8 @@ struct EditorPreviewSurface: View {
         AppAppearance.system.rawValue
     @AppStorage(PreviewPreferences.markdownThemeKey) private var markdownTheme =
         MarkdownPreviewTheme.diagramDown.rawValue
+    @AppStorage(PreviewPreferences.mermaidRendererKey) private var mermaidRenderer =
+        MermaidRendererEngine.mmdc.rawValue
     @AppStorage(PreviewPreferences.mermaidLightThemeKey) private var mermaidLightTheme =
         MermaidPreviewTheme.default.rawValue
     @AppStorage(PreviewPreferences.mermaidDarkThemeKey) private var mermaidDarkTheme =
@@ -239,6 +241,7 @@ struct EditorPreviewSurface: View {
         PreviewConfiguration(
             appearance: AppAppearance(rawValue: appearance) ?? .system,
             markdownTheme: MarkdownPreviewTheme(rawValue: markdownTheme) ?? .diagramDown,
+            mermaidRenderer: MermaidRendererEngine(rawValue: mermaidRenderer) ?? .mmdc,
             mermaidLightTheme: MermaidPreviewTheme(rawValue: mermaidLightTheme) ?? .default,
             mermaidDarkTheme: MermaidPreviewTheme(rawValue: mermaidDarkTheme) ?? .dark,
             d2: D2RenderConfiguration(
