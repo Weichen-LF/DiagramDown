@@ -486,7 +486,7 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
     }
 
     @Published private(set) var savedTextFingerprint: String
-    @Published var storedViewMode = DocumentViewMode.editorAndPreview.rawValue
+    @Published var storedViewMode = DocumentViewMode.previewOnly.rawValue
     @Published private(set) var isSaving = false
     @Published private(set) var externalConflict: WorkspaceExternalConflict?
     private var currentTextFingerprint: String
@@ -498,7 +498,7 @@ final class OpenFileBuffer: ObservableObject, Identifiable {
         text: String,
         savedTextFingerprint: String? = nil,
         lastObservedStamp: WorkspaceFileStamp? = nil,
-        storedViewMode: String = DocumentViewMode.editorAndPreview.rawValue,
+        storedViewMode: String = DocumentViewMode.previewOnly.rawValue,
         editorScrollPosition: ScrollSyncPosition = .initial,
         editorPreviewSession: EditorPreviewSessionState? = nil
     ) {
@@ -1159,7 +1159,7 @@ final class WorkspaceSession: ObservableObject {
                 savedTextFingerprint: recovered.savedTextFingerprint,
                 storedViewMode: DocumentViewMode(
                     rawValue: recovered.storedViewMode
-                )?.rawValue ?? DocumentViewMode.editorAndPreview.rawValue,
+                )?.rawValue ?? DocumentViewMode.previewOnly.rawValue,
                 editorScrollPosition: ScrollSyncPosition(
                     sourceLine: max(recovered.editorSourceLine, 1),
                     progress: progress,

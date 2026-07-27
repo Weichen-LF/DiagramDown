@@ -68,8 +68,11 @@ executables directly; your documents stay on your Mac.
   fenced source
 - Focused Mermaid/D2 viewer: resize the sheet, pinch to zoom, and export SVG
 - Sharper Mermaid PNG previews at 2× render scale without changing layout size
+- Mermaid and D2 fences show as code while rendering, then swap in when ready
 - Local images from relative, absolute, or `file://` paths (PNG, JPEG, GIF,
-  TIFF, BMP, HEIC, WebP, SVG, and more)
+  TIFF, BMP, HEIC, WebP, SVG, and more), with a resizable full viewer
+- Open files in **Preview Only** by default; switch layouts anytime from the
+  toolbar
 - Scroll sync between editor and preview; click the preview to jump to source
 - Export the complete preview as PDF
 
@@ -115,8 +118,10 @@ DiagramDown requires macOS 15 or later on Apple Silicon.
 ## Current release
 
 DiagramDown `0.25.0` is an Apple Silicon release. It adds image insertion with
-optional `assets/` copy, resizable Mermaid/D2 diagram viewers sized near the
-parent window, and sharper Mermaid PNG previews at 2× scale.
+optional `assets/` copy, resizable Mermaid/D2 and image viewers, sharper
+Mermaid PNG previews at 2× scale, Preview Only as the default layout, and
+non-blocking diagram rendering that shows fenced source until CLI output is
+ready.
 
 Intel Macs and automatic updates are not available yet.
 

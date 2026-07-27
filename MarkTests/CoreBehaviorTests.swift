@@ -46,6 +46,14 @@ final class DocumentViewModeTests: XCTestCase {
             XCTAssertFalse(mode.systemImage.isEmpty)
         }
     }
+
+    func testNewBuffersDefaultToPreviewOnly() {
+        let buffer = OpenFileBuffer(
+            url: URL(fileURLWithPath: "/tmp/notes.md"),
+            text: "# Hello"
+        )
+        XCTAssertEqual(buffer.storedViewMode, DocumentViewMode.previewOnly.rawValue)
+    }
 }
 
 @MainActor

@@ -218,7 +218,7 @@ struct EditorPreviewSurface: View {
     }
 
     private var activeViewMode: DocumentViewMode {
-        DocumentViewMode(rawValue: storedViewMode) ?? .editorAndPreview
+        DocumentViewMode(rawValue: storedViewMode) ?? .previewOnly
     }
 
     private var viewModeBinding: Binding<DocumentViewMode> {

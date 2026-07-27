@@ -49,7 +49,7 @@ struct DiagramBlockView: View {
             if let document = state.document {
                 HStack(spacing: 6) {
                     Button {
-                        viewerPreferredSize = Self.preferredViewerSize()
+                        viewerPreferredSize = PreviewMediaViewerSizing.preferredSize()
                         showsViewer = true
                     } label: {
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -90,27 +90,25 @@ struct DiagramBlockView: View {
         }
     }
 
-    private static func preferredViewerSize() -> CGSize {
-        let parent = (NSApp.keyWindow ?? NSApp.mainWindow)?.contentLayoutRect.size
-            ?? CGSize(width: 1_120, height: 720)
-        return CGSize(
-            width: max(960, parent.width * 0.96),
-            height: max(640, parent.height * 0.96)
-        )
-    }
-
     @ViewBuilder
     private var diagramContent: some View {
         switch state {
-        case .idle:
-            ProgressView()
-                .controlSize(.small)
-                .frame(minHeight: 100 * metrics.zoom)
-
-        case .rendering:
-            ProgressView()
-                .controlSize(.small)
-                .frame(minHeight: 100 * metrics.zoom)
+        case .idle, .rendering:
+            ZStack(alignment: .topTrailing) {
+                CodeBlockView(
+                    source: source,
+                    language: nil,
+                    rawLanguage: kind.rawValue,
+                    theme: theme,
+                    metrics: metrics
+                )
+                if case .rendering = state {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(8)
+                        .help("Rendering diagram…")
+                }
+            }
 
         case .rendered(let document):
             NativeDiagramView(
@@ -136,12 +134,18 @@ struct DiagramBlockView: View {
 
         case .failed(let message):
             VStack(alignment: .leading, spacing: 8) {
+                CodeBlockView(
+                    source: source,
+                    language: nil,
+                    rawLanguage: kind.rawValue,
+                    theme: theme,
+                    metrics: metrics
+                )
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.system(size: metrics.bodyFontSize))
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
             }
-            .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
         }
     }
 
@@ -159,7 +163,13 @@ struct DiagramBlockView: View {
 
     @MainActor
     private func render() async {
-        state = .rendering
+        // Keep the fenced source visible while the CLI work runs off the main
+        // actor path through DiagramRenderCoordinator / ExternalProcessRunner.
+        if case .rendered = state {
+            // Re-render after an already-visible diagram (theme/tool change).
+        } else {
+            state = .rendering
+        }
         let request = diagramRequest
         let expectedBlockID = blockID
         let expectedRevision = revision
