@@ -19,6 +19,13 @@ The project follows [Semantic Versioning](https://semver.org/).
 - Diagram Tools settings list both Mermaid CLI (`mmdc`) and `mmdr`, with install
   guidance for each
 
+### Fixed
+
+- Sidebar auto-refresh no longer publishes on unchanged polls, which was making
+  nested Edit menus flicker and become unusable
+- Sidebar directory polling runs every 10 seconds and also refreshes when a tree
+  row is clicked, instead of scanning every second
+
 ## [0.25.0] - 2026-07-27
 
 ### Added

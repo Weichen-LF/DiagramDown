@@ -908,13 +908,21 @@ final class WorkspaceSession: ObservableObject {
             return
         }
         externalChangeTask = Task { [weak self] in
+            var secondsSinceTreeRefresh = 0
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else {
                     return
                 }
+                // Open buffers still need near-real-time conflict detection.
                 await self?.checkForExternalChanges()
-                await self?.refreshVisibleTreeIfNeeded()
+                secondsSinceTreeRefresh += 1
+                // Directory listings are cheaper to poll less often; clicks also
+                // trigger an on-demand refresh.
+                if secondsSinceTreeRefresh >= 10 {
+                    secondsSinceTreeRefresh = 0
+                    await self?.refreshVisibleTreeIfNeeded()
+                }
             }
         }
     }
@@ -1106,6 +1114,9 @@ final class WorkspaceSession: ObservableObject {
 
     /// Reloads the root and currently expanded directories when the workspace
     /// filesystem changes outside DiagramDown (Finder, git, editors, etc.).
+    ///
+    /// Important: do not write `@Published` properties when nothing changed.
+    /// Periodic no-op publishes rebuild the scene and make nested menus flicker.
     func refreshVisibleTreeIfNeeded() async {
         guard !isRefreshingTree else {
             return
@@ -1149,21 +1160,35 @@ final class WorkspaceSession: ObservableObject {
                 expandedDirectoryIDs: nextExpanded
             )
             guard fingerprint != lastVisibleTreeFingerprint else {
-                treeErrorDescription = nil
                 return
             }
 
-            rootNodes = nextRootNodes
-            childrenByDirectoryID = nextChildren
-            if nextExpanded != expandedDirectoryIDs {
+            let rootChanged = rootNodes != nextRootNodes
+            let childrenChanged = childrenByDirectoryID != nextChildren
+            let expandedChanged = nextExpanded != expandedDirectoryIDs
+
+            if rootChanged {
+                rootNodes = nextRootNodes
+            }
+            if childrenChanged {
+                childrenByDirectoryID = nextChildren
+            }
+            if expandedChanged {
                 expandedDirectoryIDs = nextExpanded
                 scheduleRecoverySave()
             }
             lastVisibleTreeFingerprint = fingerprint
-            treeErrorDescription = nil
-            objectWillChange.send()
+            if treeErrorDescription != nil {
+                treeErrorDescription = nil
+            }
+            // childrenByDirectoryID is not @Published; notify when only it changes.
+            if childrenChanged && !rootChanged && !expandedChanged {
+                objectWillChange.send()
+            }
         } catch {
-            treeErrorDescription = error.localizedDescription
+            if treeErrorDescription != error.localizedDescription {
+                treeErrorDescription = error.localizedDescription
+            }
         }
     }
 

@@ -509,6 +509,55 @@ final class WorkspaceModelTests: XCTestCase {
         )
     }
 
+    func testVisibleTreeRefreshIsNoOpWhenNothingChanged() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("# Workspace\n".utf8).write(
+            to: root.appendingPathComponent("README.md")
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+
+        await session.loadRoot()
+        let rootBefore = session.rootNodes
+
+        var publishCount = 0
+        let cancellable = session.objectWillChange.sink { _ in
+            publishCount += 1
+        }
+        defer { cancellable.cancel() }
+
+        await session.refreshVisibleTreeIfNeeded()
+        await session.refreshVisibleTreeIfNeeded()
+
+        XCTAssertEqual(session.rootNodes, rootBefore)
+        XCTAssertEqual(publishCount, 0)
+    }
+
+    func testOpeningTreeRowCanPickUpFilesystemAdditions() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let readmeURL = root.appendingPathComponent("README.md")
+        try Data("# Workspace\n".utf8).write(to: readmeURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = WorkspaceSession(rootURL: root)
+
+        await session.loadRoot()
+        try Data("# New\n".utf8).write(
+            to: root.appendingPathComponent("notes.md")
+        )
+        await session.refreshVisibleTreeIfNeeded()
+        let notes = try XCTUnwrap(
+            session.rootNodes.first(where: { $0.name == "notes.md" })
+        )
+        await session.openFile(notes)
+
+        XCTAssertEqual(session.activeFile?.url, root.appendingPathComponent("notes.md").standardizedFileURL)
+        XCTAssertEqual(session.activeFile?.text, "# New\n")
+    }
+
     func testSaveAllWritesEveryDirtyBuffer() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

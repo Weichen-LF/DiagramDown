@@ -359,6 +359,9 @@ private struct WorkspaceContentView: View {
 
     private func handleTreeRow(_ node: FileTreeNode) {
         Task {
+            // Refresh on interaction so Finder/git changes show up without a
+            // frequent background poll.
+            await session.refreshVisibleTreeIfNeeded()
             if node.isDirectory {
                 await session.toggleDirectory(node)
             } else {
